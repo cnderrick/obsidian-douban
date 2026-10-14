@@ -18,36 +18,35 @@ import { i18nHelper } from "../../../lang/helper";
 import { SearchPage } from "../../data/model/SearchPage";
 import {SearchPageTypeOf} from "../../data/model/SearchPageTypeOf";
 
-function toDateList(dataList: SubjectListItem[]): Date[] {
-	const dateList = dataList
-		.map((item) => item.updateDate)
-		.sort((a, b) => {
-			try {
-				return a.getTime() - b.getTime();
-			} catch (e) {
-			}
-			return 0;
-		});
-	return dateList;
+/**
+ * 取一页条目里最新的更新日期; 一页里没有任何可解析日期时返回 null。
+ */
+function newestDate(dataList: SubjectListItem[]): Date | null {
+	return pickDate(dataList, (candidate, current) => candidate.getTime() > current.getTime());
 }
 
-function testTouchEndCondition(searchPage: SearchPage, context: HandleContext) {
-	const { syncConfig } = context;
-	if (!syncConfig) {
-		return false;
-	}
-	switch (syncConfig.syncConditionType) {
-		case SyncConditionType.ALL:
-			return false;
-		case SyncConditionType.LAST_THIRTY:
-			return searchPage.pageNum >= 0;
-		case SyncConditionType.CUSTOM_ITEM:
-			const syncConditionCountToValue = syncConfig.syncConditionCountToValue? syncConfig.syncConditionCountToValue : searchPage.total;
-			return searchPage.start + PAGE_SIZE - 1 >= syncConditionCountToValue;
-		case SyncConditionType.CUSTOM_TIME:
-			return true;
-	}
-	return false;
+/**
+ * 取一页条目里最旧的更新日期; 一页里没有任何可解析日期时返回 null。
+ */
+function oldestDate(dataList: SubjectListItem[]): Date | null {
+	return pickDate(dataList, (candidate, current) => candidate.getTime() < current.getTime());
+}
+
+function pickDate(
+	dataList: SubjectListItem[],
+	isBetter: (candidate: Date, current: Date) => boolean,
+): Date | null {
+	let result: Date | null = null;
+	(dataList || []).forEach((item) => {
+		const date = item ? item.updateDate : null;
+		if (!(date instanceof Date) || isNaN(date.getTime())) {
+			return;
+		}
+		if (result == null || isBetter(date, result)) {
+			result = date;
+		}
+	});
+	return result;
 }
 
 export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
@@ -87,117 +86,111 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		}
 	}
 
+	/**
+	 * 拉取指定日期范围内的条目。
+	 *
+	 * 列表按时间倒序返回, 所以「日期落在范围内」的条目是连续的一段, 可以用两次二分把
+	 * 区间两端的页找出来, 再只取这一段:
+	 * <li>跳过整页都晚于结束日期的页(它们还没进入范围)</li>
+	 * <li>在第一个整页都早于起始日期的页处停下(范围已经结束)</li>
+	 * <li>区间内逐页取回, 再按条目日期过滤</li>
+	 *
+	 * 取页必须显式给出页号(由 getItems 换算成 start 偏移)。旧实现依赖从未赋值的
+	 * context.syncOffset, 每次请求都在抓第 1 页, 汇总时把同一页条目重复累加,
+	 * 于是「需要同步数」可以超过列表总数。
+	 */
 	async getByTimeLimit(syncConfig: SyncConfig, context: HandleContext): Promise<SubjectListItem[]> {
-		let startDate = syncConfig.syncConditionDateFromValue
+		const startDate = syncConfig.syncConditionDateFromValue
 			? new Date(syncConfig.syncConditionDateFromValue)
 			: null;
-		let endDate = syncConfig.syncConditionDateToValue
+		const endDate = syncConfig.syncConditionDateToValue
 			? new Date(syncConfig.syncConditionDateToValue)
 			: null;
 		if (!startDate && !endDate) {
 			log.warn(i18nHelper.getMessage("110081"));
 			return;
 		}
-		const cacheList = new Map<number, SearchPageTypeOf<SubjectListItem>>();
-		let searchPage = await this.getItems(syncConfig, context);
-		if (!searchPage) {
+		const firstPage = await this.getItems(syncConfig, context, 1);
+		if (!firstPage) {
 			return;
 		}
-		const total = searchPage.total;
-		const lastPage = total / PAGE_SIZE + 1;
-		if (lastPage == 1) {
-			return searchPage.list;
-		}
-		let leftPage = 1;
-		let startPage = 1;
-		let rightPage = lastPage;
-		let endPage = lastPage;
-		let currentPage = 1;
-		cacheList.set(currentPage, searchPage);
-		if (startDate != null) {
-			do {
+		const lastPage: number = Math.max(1, Math.ceil(firstPage.total / PAGE_SIZE));
+		const cacheList = new Map<number, SearchPageTypeOf<SubjectListItem>>();
+		cacheList.set(firstPage.pageNum, firstPage);
+		/**
+		 * 按页号取页, 已取过的直接复用。缓存键用实际取到的页号, 避免把某一页的数据
+		 * 挂在别的页号下(旧实现就是按意图页号挂, 于是二分探测全都被第 1 页顶替)。
+		 */
+		const fetchPage = async (pageNum: number): Promise<SearchPageTypeOf<SubjectListItem>> => {
+			const cached = cacheList.get(pageNum);
+			if (cached) {
+				return cached;
+			}
+			const page = await this.getItems(syncConfig, context, pageNum);
+			if (page) {
+				cacheList.set(page.pageNum, page);
+			}
+			return page;
+		};
+		/**
+		 * 在页序列里二分查找第一个满足条件的页号; 一页都不满足时返回 fallback。
+		 */
+		const findFirstPage = async (
+			matched: (page: SearchPageTypeOf<SubjectListItem>) => boolean,
+			fallback: number,
+		): Promise<number> => {
+			let left = 1;
+			let right = lastPage;
+			let result = fallback;
+			while (left <= right) {
 				if (!context.plugin.statusHolder.syncing()) {
 					break;
 				}
-				let page = cacheList.get(currentPage);
-				if (!page) {
-					page = await this.getItems(syncConfig, context);
-					if (!page) {
-						break;
-					}
-					cacheList.set(currentPage, page);
-				}
-				const pageItems = page.list;
-				const pageDateList = toDateList(pageItems);
-				if (pageDateList[pageDateList.length - 1] >= startDate) {
-					leftPage = currentPage;
-					endPage = currentPage;
-					currentPage = Math.ceil((leftPage + rightPage) / 2);
-				}else {
-					rightPage = currentPage;
-					endPage = currentPage;
-					currentPage = Math.floor((leftPage + rightPage) / 2);
-				}
-				if (currentPage == leftPage || currentPage == rightPage) {
+				const mid = Math.floor((left + right) / 2);
+				const page = await fetchPage(mid);
+				if (!page || !page.list || page.list.length == 0) {
 					break;
 				}
-			} while (currentPage < lastPage);
+				if (matched(page)) {
+					result = mid;
+					right = mid - 1;
+				} else {
+					left = mid + 1;
+				}
+			}
+			return result;
+		};
+		const startPage: number = endDate
+			? await findFirstPage((page) => {
+				const date = oldestDate(page.list);
+				return date == null || date <= endDate;
+			}, lastPage + 1)
+			: 1;
+		const endPage: number = startDate
+			? (await findFirstPage((page) => {
+				const date = newestDate(page.list);
+				return date != null && date < startDate;
+			}, lastPage + 1)) - 1
+			: lastPage;
+		if (startPage > endPage) {
+			return [];
 		}
-		leftPage = 1;
-		rightPage = lastPage;
-		currentPage = 1;
-		if (endDate != null) {
-			do {
-				if (!context.plugin.statusHolder.syncing()) {
-					break;
-				}
-				let page = cacheList.get(currentPage);
-				if (!page) {
-					page = await this.getItems(syncConfig, context);
-					if (!page) {
-						break;
-					}
-					cacheList.set(currentPage, page);
-				}
-				const pageItems = page.list;
-				const pageDateList = toDateList(pageItems);
-				if (pageDateList[0] <= endDate) {
-					rightPage = currentPage;
-					startPage = currentPage;
-					currentPage = Math.ceil((leftPage + rightPage) / 2);
-				}else {
-					leftPage = currentPage;
-					startPage = currentPage;
-					currentPage = Math.floor((leftPage + rightPage) / 2);
-				}
-				if (currentPage == leftPage || currentPage == rightPage) {
-					break;
-				}
-			} while (currentPage < lastPage);
-		}
-		let needHandleItems:SubjectListItem[] = [];
+		const needHandleItems: SubjectListItem[] = [];
 		for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
 			if (!context.plugin.statusHolder.syncing()) {
 				break;
 			}
-			let page = cacheList.get(pageNum);
+			const page = await fetchPage(pageNum);
 			if (!page) {
-				page = await this.getItems(syncConfig, context);
-				if (!page) {
-					break;
-				}
-				cacheList.set(pageNum, page);
+				break;
 			}
-			const pageItems = page.list;
-			needHandleItems = needHandleItems.concat(pageItems
-				.filter((item) => {
-					const itemDate = item.updateDate;
-					return (!startDate || itemDate >= startDate) && (!endDate || itemDate <= endDate);
-				}
-			));
+			// 每页只取一次, 按日期过滤后累加
+			needHandleItems.push(...page.list.filter((item) => {
+				const itemDate = item.updateDate;
+				return (!startDate || itemDate >= startDate) && (!endDate || itemDate <= endDate);
+			}));
 		}
 		return needHandleItems;
-
 	}
 	async syncByTimeLimit(syncConfig: SyncConfig, context: HandleContext) {
 		const items = await this.getByTimeLimit(syncConfig, context);
@@ -219,17 +212,24 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 
 	}
 
+	/**
+	 * 取一页列表数据。
+	 *
+	 * @param pageNum 页号(从 1 开始); 不传时沿用 context.syncOffset 表示的偏移
+	 */
 	private async getItems(
 		syncConfig: SyncConfig,
 		context: HandleContext,
+		pageNum?: number,
 	): Promise<SearchPageTypeOf<SubjectListItem>> {
 		const supportHandlers: DoubanListHandler[] =
 			this.doubanListHandlers.filter((h) => h.support(syncConfig));
 		const handler = supportHandlers[0];
-		if (!context.plugin.statusHolder.syncing()) {
+		if (!context.plugin.statusHolder.syncing() || !handler) {
 			return SearchPage.emptyWithNoType();
 		}
-		const item = await handler.getPageData(context);
+		const offset = pageNum == null ? undefined : Math.max(0, (pageNum - 1) * PAGE_SIZE);
+		const item = await handler.getPageData(context, offset);
 		if (!context.plugin.statusHolder.syncing()) {
 			return SearchPage.emptyWithNoType();
 		}

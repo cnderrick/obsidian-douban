@@ -23,11 +23,20 @@ import {SearchPageTypeOf} from "../../../data/model/SearchPageTypeOf";
 export default abstract class DoubanAbstractListHandler
 	implements DoubanListHandler
 {
-	async getPageData(context: HandleContext): Promise<SearchPage> {
-		let all: SubjectListItem[] = [];
-		let pages: SearchPage = SearchPage.emptyWithNoType();
-
-		const url: string = this.getUrl(context, context.syncOffset);
+	/**
+	 * 取一页列表数据。
+	 *
+	 * start 参数决定实际取到的是哪一页, 而豆瓣在 start 缺失时会返回第 1 页, 所以这里把
+	 * 未指定、未初始化的 offset 规范成 0, 并回写 context.syncOffset, 让解析出的页码
+	 * (parseSubjectFromHtml 依赖它) 与实际请求的页保持一致。
+	 *
+	 * @param context 处理上下文
+	 * @param offset 起始条目偏移; 不传时使用 context.syncOffset
+	 */
+	async getPageData(context: HandleContext, offset?: number): Promise<SearchPage> {
+		const start: number = offset == null ? (context.syncOffset == null ? 0 : context.syncOffset) : offset;
+		context.syncOffset = start;
+		const url: string = this.getUrl(context, start);
 		if (!context.plugin.statusHolder.syncing()) {
 			return SearchPage.emptyWithNoType();
 		}
@@ -104,8 +113,9 @@ export default abstract class DoubanAbstractListHandler
 				let idPattern = /(\d){5,10}/g;
 				let ececResult = idPattern.exec(linkValue);
 				return !ececResult ? null : {id: ececResult[0], url: linkValue, title: titleValue, updateDate: updateDate};
-				// return linkValue;
-			});
+			})
+			// 取不到 id 的条目直接丢弃, 避免 null 条目在后续处理中被当成正常条目
+			.filter((item): item is SubjectListItem => item != null);
 		const subjectNumText = dataHtml(".subject-num").text().trim();
 		const totalNumMatch = subjectNumText.match(/\/\s*(\d+)/);
 		const totalNum = totalNumMatch ? parseInt(totalNumMatch[1], 10) : 0;
