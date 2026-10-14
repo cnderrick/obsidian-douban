@@ -6,7 +6,7 @@ import DoubanSubject from '../model/DoubanSubject';
 import DoubanMovieSubject from '../model/DoubanMovieSubject';
 import StringUtil from "../../../utils/StringUtil";
 import HandleContext from "../model/HandleContext";
-import {DataValueType, PersonNameMode, PropertyName, SupportType, TemplateKey} from "../../../constant/Constsant";
+import {DataValueType, PropertyName, SupportType, TemplateKey} from "../../../constant/Constsant";
 import {UserStateSubject} from "../model/UserStateSubject";
 import {moment} from "obsidian";
 import YamlUtil, {SPECIAL_CHAR_REG, TITLE_ALIASES_SPECIAL_CHAR_REG_G} from "../../../utils/YamlUtil";
@@ -106,9 +106,7 @@ export default class DoubanMovieLoadHandler extends DoubanAbstractLoadHandler<Do
 				const obj = JSON.parse(item.replace(/[\r\n\t]+/g, ''));
 				const idPattern = /(\d){5,10}/g;
 				const id = idPattern.exec(obj.url);
-				const name = obj.name;
-				const title = super.getTitleNameByMode(name, PersonNameMode.CH_NAME, context) ?? name;
-				const originalTitle = super.getTitleNameByMode(name, PersonNameMode.EN_NAME, context) ?? name;
+				const {title, originalTitle} = super.getTitleAndOriginalTitle(obj.name, context);
 
 				const result: DoubanMovieSubject = {
 					id: id ? id[0] : '',

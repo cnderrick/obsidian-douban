@@ -8,7 +8,7 @@ import {load} from "cheerio";
 import {readFileSync} from "fs";
 import {join} from "path";
 import DoubanTheaterLoadHandler from "../src/org/wanxp/douban/data/handler/DoubanTheaterLoadHandler";
-import {PersonNameMode, SupportType} from "../src/org/wanxp/constant/Constsant";
+import {SupportType} from "../src/org/wanxp/constant/Constsant";
 
 describe("DoubanTheaterLoadHandler", () => {
 	const handler = new DoubanTheaterLoadHandler({} as any);
@@ -34,13 +34,19 @@ describe("DoubanTheaterLoadHandler", () => {
 		expect(subject.language).toEqual([]);
 	});
 
-	it("preserves English-title spaces and does not erase a mixed title", () => {
-		expect(handler.getTitleNameByMode("Under the Skin 皮囊之下", PersonNameMode.EN_NAME, {
+	it("keeps English title spaces and does not erase a mixed title", () => {
+		expect(handler.getTitleAndOriginalTitle("Under the Skin 皮囊之下", {
 			listItem: {title: "皮囊之下"},
-		} as any)).toBe("Under the Skin");
-		expect(handler.getTitleNameByMode("Hello！树先生", PersonNameMode.EN_NAME, {
+		} as any)).toEqual({
+			title: "Under the Skin 皮囊之下",
+			originalTitle: "Under the Skin",
+		});
+		expect(handler.getTitleAndOriginalTitle("Hello！树先生", {
 			listItem: {title: "Hello！树先生"},
-		} as any)).toBe("Hello！树先生");
+		} as any)).toEqual({
+			title: "Hello！树先生",
+			originalTitle: "Hello！树先生",
+		});
 	});
 
 	it("reads the id from legacy theater pages without canonical metadata", () => {

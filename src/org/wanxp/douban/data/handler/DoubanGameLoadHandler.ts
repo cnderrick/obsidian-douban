@@ -4,7 +4,7 @@ import DoubanPlugin from "../../../main";
 import DoubanSubject from '../model/DoubanSubject';
 import DoubanGameSubject from '../model/DoubanGameSubject';
 import HandleContext from "../model/HandleContext";
-import {DataValueType, PersonNameMode, SupportType} from "../../../constant/Constsant";
+import {DataValueType, SupportType} from "../../../constant/Constsant";
 import {UserStateSubject} from "../model/UserStateSubject";
 import {moment} from "obsidian";
 import {TITLE_ALIASES_SPECIAL_CHAR_REG_G} from "../../../utils/YamlUtil";
@@ -67,8 +67,7 @@ export default class DoubanGameLoadHandler extends DoubanAbstractLoadHandler<Dou
 	}
 
 	parseSubjectFromHtml(html: CheerioAPI, context: HandleContext): DoubanGameSubject {
-		let title = html(html("#content > h1").get(0)).text();
-		title = this.getPersonNameByMode(title, PersonNameMode.CH_NAME);
+		const title = this.getTitleAndOriginalTitle(html(html("#content > h1").get(0)).text(), context).title;
 		let idContent = html(html("head > meta[name= 'mobile-agent']").get(0)).attr("content");
 		let idPattern = /(\d){5,10}/g;
 		let idP = idPattern.exec(idContent);

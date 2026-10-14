@@ -231,58 +231,67 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 		return resultName.trim();
 	}
 
-	getTitleNameByMode(name: string, personNameMode: string, context: HandleContext): string {
-		if (!name || !personNameMode) {
-			return "";
+	/**
+	 * 汉字字符:中日韩统一表意文字及其扩展区、兼容区。
+	 */
+	private static readonly CJK_CHAR_REG = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/;
+
+	/**
+	 * 原名首尾需要清理的标点以及空白。
+	 */
+	private static readonly TITLE_EDGE_PUNCTUATION_REG =
+		/^[\s:：,，.。;；!！?？~～|/·"'“”‘’()（）\[\]【】\-–—_]+|[\s:：,，.。;；!！?？~～|/·"'“”‘’()（）\[\]【】\-–—_]+$/g;
+
+	/**
+	 * 计算笔记标题与原名。
+	 *
+	 * 豆瓣 JSON-LD 的 name 通常是「中文名 英文名」的形式(如「飞屋环游记 Up」)。
+	 * 旧实现用「人名正则」从 name 中抽取中文段作为 title,导致名称里的英文字母
+	 * 从标题和笔记文件名中消失;中英之间夹着标点时还会把标题切剩一个「:」。
+	 *
+	 * 现在的规则:
+	 * <li>title 保留完整名称(中英都保留),名称统一压缩成单空格;name 缺失时回退搜索结果标题</li>
+	 * <li>originalTitle 取剔除中文段后的原名,只有中文段与非中文段之间存在空白分隔时
+	 * 才切分,切分结果为空或只剩标点时回退完整名称</li>
+	 *
+	 * @param name 详情页解析出的名称
+	 * @param context 处理上下文,用于在 name 缺失时回退 listItem
+	 */
+	getTitleAndOriginalTitle(name: string, context: HandleContext): {title: string, originalTitle: string} {
+		// 详情页 h1 等来源会带换行与缩进,标题统一压缩成单空格再使用
+		const fullName = [name, context?.listItem?.title]
+			.map(value => String(value || '').replace(/\s+/g, ' ').trim())
+			.find(value => value) || '';
+		if (!fullName) {
+			return {title: '', originalTitle: ''};
 		}
-		if (context.listItem) {
-			const listedName = context.listItem.title.trim();
-			switch (personNameMode) {
-				case PersonNameMode.CH_NAME:
-					return listedName;
-				case PersonNameMode.EN_NAME:
-					const originalName = name.trim();
-					if (this.removeWhitespace(originalName) === this.removeWhitespace(listedName)) {
-						return originalName;
-					}
-					const withoutListedName = this.removeTextIgnoringWhitespace(originalName, listedName).trim();
-					return withoutListedName || originalName;
-			}
-		}
-		return this.getPersonNameByMode(name, personNameMode);
+		return {title: fullName, originalTitle: this.extractOriginalTitle(fullName)};
 	}
 
-	private removeWhitespace(value: string): string {
-		return (value || '').replace(/\s+/g, '');
-	}
-
-	private removeTextIgnoringWhitespace(value: string, textToRemove: string): string {
-		const compactNeedle = this.removeWhitespace(textToRemove);
-		if (!compactNeedle) {
-			return value;
+	/**
+	 * 从完整名称中取出「原名」部分,即剔除中文段后的非中文内容。
+	 *
+	 * 名称只有中文段或只有非中文段时不做切分,直接返回完整名称;
+	 * 剔除后只剩标点(如「东京物语 —」里的「—」)时同样回退完整名称。
+	 *
+	 * @param fullName 完整名称
+	 */
+	private extractOriginalTitle(fullName: string): string {
+		const words = fullName.split(/\s+/).filter(word => word);
+		if (words.length < 2) {
+			return fullName;
 		}
-		const compactValue = this.removeWhitespace(value);
-		const compactIndex = compactValue.indexOf(compactNeedle);
-		if (compactIndex < 0) {
-			return value;
+		const chineseWords = words.filter(word => DoubanAbstractLoadHandler.CJK_CHAR_REG.test(word));
+		if (chineseWords.length == 0 || chineseWords.length == words.length) {
+			return fullName;
 		}
-		let compactPosition = 0;
-		let start = -1;
-		let end = value.length;
-		for (let index = 0; index < value.length; index++) {
-			if (/\s/.test(value[index])) {
-				continue;
-			}
-			if (compactPosition === compactIndex) {
-				start = index;
-			}
-			compactPosition++;
-			if (compactPosition === compactIndex + compactNeedle.length) {
-				end = index + 1;
-				break;
-			}
-		}
-		return start >= 0 ? value.substring(0, start) + value.substring(end) : value;
+		const originalTitle = words
+			.filter(word => !DoubanAbstractLoadHandler.CJK_CHAR_REG.test(word))
+			.join(' ')
+			.replace(DoubanAbstractLoadHandler.TITLE_EDGE_PUNCTUATION_REG, '')
+			.trim();
+		const hasContent = /[0-9A-Za-z]/.test(originalTitle) || /[^\x00-\x7F]/.test(originalTitle);
+		return hasContent ? originalTitle : fullName;
 	}
 
 	// html_encode(str: string): string {

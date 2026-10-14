@@ -96,7 +96,9 @@ describe("downloaded real Douban HTML", () => {
 			read("96-皮囊之下-3749974.html"),
 			context("皮囊之下"),
 		);
-		expect(underTheSkin.title).toBe("皮囊之下");
+		// title 保留完整名称(中英都保留), 用于笔记标题与文件名; originalTitle 取原名部分
+		expect(underTheSkin.title).toContain("皮囊之下");
+		expect(underTheSkin.title).toContain("Under the Skin");
 		expect(underTheSkin.originalTitle).toBe("Under the Skin");
 
 		const hello = handler.parseSubjectFromHtml(

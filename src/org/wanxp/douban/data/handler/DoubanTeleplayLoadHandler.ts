@@ -5,7 +5,7 @@ import DoubanSubject from "../model/DoubanSubject";
 import DoubanTeleplaySubject from "../model/DoubanTeleplaySubject";
 import SchemaOrg from "src/org/wanxp/utils/SchemaOrg";
 import HandleContext from "../model/HandleContext";
-import {DataValueType, PersonNameMode, SupportType} from "../../../constant/Constsant";
+import {DataValueType, SupportType} from "../../../constant/Constsant";
 import {UserStateSubject} from "../model/UserStateSubject";
 import {moment} from "obsidian";
 import {TITLE_ALIASES_SPECIAL_CHAR_REG_G} from "../../../utils/YamlUtil";
@@ -92,9 +92,7 @@ export class DoubanTeleplayLoadHandler extends DoubanAbstractLoadHandler<DoubanT
 				const obj = JSON.parse(item.replace(/[\r\n\t]+/g, ''));
 				const idPattern = /(\d){5,10}/g;
 				const id = idPattern.exec(obj.url);
-				const name = obj.name;
-				const title = super.getTitleNameByMode(name, PersonNameMode.CH_NAME, context)??name;
-				const originalTitle =  super.getTitleNameByMode(name, PersonNameMode.EN_NAME, context) ?? name;
+				const {title, originalTitle} = super.getTitleAndOriginalTitle(obj.name, context);
 
 				const result: DoubanTeleplaySubject = {
 					id: id ? id[0] : '',
