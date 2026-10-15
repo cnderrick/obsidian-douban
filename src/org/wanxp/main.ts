@@ -60,7 +60,7 @@ export default class DoubanPlugin extends Plugin {
 			if (context.syncActive && extract.guessType && extract.guessType != extract.type) {
 				extract.handledStatus = SubjectHandledStatus.syncTypeDiffAbort;
 				if (Action.Sync == context.action) {
-					this.showStatus(i18nHelper.getMessage('140207', syncStatus.getHasHandle(), syncStatus.getTotal(), extract.title));
+					this.showStatus(i18nHelper.getMessage('140207', syncStatus.getProgressHandled(), syncStatus.getTotal(), extract.title));
 					syncStatus.failByDiffType(extract.id, extract.title);
 				}else {
 					console.log(i18nHelper.getMessage('140102', extract.type, extract.title, extract.guessType));
@@ -78,7 +78,7 @@ export default class DoubanPlugin extends Plugin {
 				extract.handledStatus = SubjectHandledStatus.saved;
 			}
 			if (Action.Sync == context.action) {
-				this.showStatus(i18nHelper.getMessage('140208', syncStatus.getHasHandle(),  syncStatus.getTotal(), extract.title));
+				this.showStatus(i18nHelper.getMessage('140208', syncStatus.getProgressHandled(),  syncStatus.getTotal(), extract.title));
 			}else {
 				this.showStatus(i18nHelper.getMessage('140205', extract.title));
 			}

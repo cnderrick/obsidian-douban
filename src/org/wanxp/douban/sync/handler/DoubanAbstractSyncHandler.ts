@@ -359,9 +359,6 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		}
 		const { syncStatus } = context.syncStatusHolder;
 		syncStatus.totalNum(this.runTotal > 0 ? this.runTotal : items.length);
-		const needHandled: number =
-			syncStatus.getTotal() - syncStatus.getHasHandle();
-		syncStatus.setNeedHandled(needHandled);
 		for (const item of items) {
 			if (!context.plugin.statusHolder.syncing()) {
 				return;

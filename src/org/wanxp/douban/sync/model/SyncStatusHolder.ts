@@ -35,14 +35,12 @@ export default class SyncStatusHolder {
 	//处理的总数
 	private total:number;
 	private handle:number;
-	private needHandled:number;
 	private message:string = '';
 
 	constructor(syncConfig: SyncConfig) {
 		this.syncConfig = syncConfig;
 		this.total = 0;
 		this.handle = 0;
-		this.needHandled = 0;
 		this.key =this.getKey(syncConfig);
 	}
 
@@ -56,10 +54,6 @@ export default class SyncStatusHolder {
 
 	getTotal():number {
 		return this.total;
-	}
-
-	getHandle():number {
-		return this.handle;
 	}
 
 	getAllTotal():number {
@@ -79,12 +73,21 @@ export default class SyncStatusHolder {
 		return this.handle;
 	}
 
-	setNeedHandled(needHandled:number) {
-		this.needHandled = needHandled;
+	/**
+	 * 进度分子: 与分母口径一致的已处理数。
+	 *
+	 * 分母在整轮同步开始时确定一次, 正常情况下分子不会超过它; 万一因为异常出现超过,
+	 * 按分母封顶, 避免界面上出现 45/30 这类数字。
+	 */
+	getProgressHandled():number {
+		return this.total > 0 ? Math.min(this.handle, this.total) : this.handle;
 	}
 
-	getNeedHandled():number {
-		return this.needHandled;
+	/**
+	 * 尚未处理的条目数: 分母减去已处理数, 不会为负。
+	 */
+	getNotHandled():number {
+		return Math.max(0, this.getTotal() - this.getHasHandle());
 	}
 
 
@@ -149,8 +152,12 @@ export default class SyncStatusHolder {
 		 return `${path}+${type}+${scope}`;
 	 }
 
+	/**
+	 * 是否属于需要放慢速率的量级: 按整轮同步的总数判断, 而不是按剩余数,
+	 * 否则同一轮同步跑着跑着就会从慢速切回快速, 预估时间也跟着跳。
+	 */
 	getOverSize():boolean {
-		return this.getNeedHandled() > BasicConst.SLOW_SIZE;
+		return this.getTotal() > BasicConst.SLOW_SIZE;
 	}
 
 	public initSyncHandledData(data:SyncHandledData[]) {

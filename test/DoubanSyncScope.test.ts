@@ -77,7 +77,6 @@ const makeContext = () => {
 		totalNum: jest.fn(),
 		getTotal: jest.fn(() => 0),
 		getHasHandle: jest.fn(() => 0),
-		setNeedHandled: jest.fn(),
 		shouldSync: () => true,
 		unHandle: jest.fn(),
 	};

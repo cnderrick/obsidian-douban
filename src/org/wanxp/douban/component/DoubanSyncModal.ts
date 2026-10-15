@@ -107,7 +107,7 @@ export class DoubanSyncModal extends Modal {
 		if (!this.plugin.statusHolder.syncStarted) {
 			progress.innerHTML = `<p>
     <label for="file">${i18nHelper.getMessage('110033')}</label>
-    <progress class="obsidian_douban_sync_slider" max="${syncStatus.getTotal() == 0 ? 1:syncStatus.getTotal()}" value="${syncStatus.getHasHandle()}"> </progress> <span> ${syncStatus.getHasHandle()}/${syncStatus.getTotal()}:${i18nHelper.getMessage('110036')}  </span>
+    <progress class="obsidian_douban_sync_slider" max="${syncStatus.getTotal() == 0 ? 1:syncStatus.getTotal()}" value="${syncStatus.getProgressHandled()}"> </progress> <span> ${syncStatus.getProgressHandled()}/${syncStatus.getTotal()}:${i18nHelper.getMessage('110036')}  </span>
 </p>
 <p>
 <label for="file">${i18nHelper.getMessage('110092')}</label>
@@ -124,8 +124,8 @@ export class DoubanSyncModal extends Modal {
 		}
 		progress.innerHTML = `<p>
     <label for="file">${i18nHelper.getMessage('110033')}</label>
-    <progress class="obsidian_douban_sync_slider" max="${syncStatus.getTotal() == 0 ? 1:syncStatus.getTotal()}" value="${syncStatus.getHasHandle()}"> </progress> <span> ${syncStatus.getTotal() == 0 ? i18nHelper.getMessage('110043') : syncStatus.getHasHandle() + '/' + syncStatus.getTotal()}
-${syncStatus.getHandle() == 0? '...' : i18nHelper.getMessage('110042') + ':' + TimeUtil.estimateTimeMsg(syncStatus.getNeedHandled()-syncStatus.getHandle(), syncStatus.getOverSize())} </span>
+    <progress class="obsidian_douban_sync_slider" max="${syncStatus.getTotal() == 0 ? 1:syncStatus.getTotal()}" value="${syncStatus.getProgressHandled()}"> </progress> <span> ${syncStatus.getTotal() == 0 ? i18nHelper.getMessage('110043') : syncStatus.getProgressHandled() + '/' + syncStatus.getTotal()}
+${syncStatus.getHasHandle() == 0? '...' : i18nHelper.getMessage('110042') + ':' + TimeUtil.estimateTimeMsg(syncStatus.getNotHandled(), syncStatus.getOverSize())} </span>
 </p>
 <p>
 <label for="file">${i18nHelper.getMessage('110092')}</label>

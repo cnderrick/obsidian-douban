@@ -94,7 +94,7 @@ export default class SyncHandler {
 			summary+= `${i18nHelper.getMessage('110053', i18nHelper.getMessage(key), value, i18nHelper.getMessage(key + '_desc'))}
 `;
 		}
-		summary += `${i18nHelper.getMessage('110053', i18nHelper.getMessage('notsync'), syncStatus.getTotal()-syncStatus.getHasHandle(), i18nHelper.getMessage('notsync_desc'))}
+		summary += `${i18nHelper.getMessage('110053', i18nHelper.getMessage('notsync'), syncStatus.getNotHandled(), i18nHelper.getMessage('notsync_desc'))}
 `;
 		let details:string = '';
 		for (const [key, value] of syncResultMap) {
