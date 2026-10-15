@@ -76,6 +76,16 @@ export default class SettingsManager {
 		await this.plugin.saveSettings();
 	}
 
+	/**
+	 * 是否开启调试日志。
+	 *
+	 * 调用方应先用它判断再拼接消息: 关闭调试时拼接诸如 JSON.stringify(headers)
+	 * 这类字符串是纯浪费(每次请求都会做一遍)。
+	 */
+	isDebug(): boolean {
+		return !!this.settings.debugMode;
+	}
+
 	debug(message:any):any {
 		if(this.settings.debugMode) {
 			return this.innerLogger.debug(message);

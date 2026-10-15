@@ -3,6 +3,8 @@ import {HttpResponse} from "../model/HttpResponse";
 
 let https: any = null;
 let http: any = null;
+let keepAliveHttpsAgent: any = null;
+let keepAliveHttpAgent: any = null;
 
 export interface DesktopRequestOptions {
 	method?: string;
@@ -15,6 +17,7 @@ export interface DesktopRequestOptions {
 export default class DesktopHttpUtil {
 	private static readonly DEFAULT_TIMEOUT_MS = 30_000;
 	private static readonly DEFAULT_RETRY_COUNT = 2;
+	private static readonly MAX_KEEP_ALIVE_SOCKETS = 4;
 
 	public static async request(
 		url: string,
@@ -80,12 +83,17 @@ export default class DesktopHttpUtil {
 		attempt: number,
 		asBuffer: boolean,
 	): Promise<HttpResponse> {
-		settingsManager?.debug(`Obsidian-Douban:从网络获取开始:\nurl:${url}\nheaders:${JSON.stringify(options)}`);
+		if (settingsManager && settingsManager.isDebug()) {
+			settingsManager.debug(`Obsidian-Douban:从网络获取开始:\nurl:${url}\nheaders:${JSON.stringify(options)}`);
+		}
 
 		return new Promise((resolve, reject) => {
 			const {body, ...requestOptions} = options;
 			requestOptions.method = requestOptions.method || 'GET';
 			requestOptions.headers = {...(requestOptions.headers || {})};
+			if (!requestOptions.agent) {
+				requestOptions.agent = this.getKeepAliveAgent(url);
+			}
 			let redirectCookie = requestOptions.headers.Cookie || requestOptions.headers.cookie || '';
 			requestOptions.beforeRedirect = (redirectOptions: any, response: any) => {
 				const setCookie = response.headers && response.headers['set-cookie'];
@@ -169,5 +177,26 @@ export default class DesktopHttpUtil {
 			http = require('follow-redirects').http;
 		}
 		return http;
+	}
+
+	/**
+	 * 复用 TCP/TLS 连接。
+	 *
+	 * follow-redirects 默认不复用连接, 每次请求都要重新握手; 一次全量同步动辄上千次
+	 * 请求, 每次都多花一次往返, 累积起来就是几分钟。
+	 */
+	private static getKeepAliveAgent(url?: string) {
+		if (url && url.startsWith('https')) {
+			if (!keepAliveHttpsAgent) {
+				const {Agent} = require('https');
+				keepAliveHttpsAgent = new Agent({keepAlive: true, maxSockets: this.MAX_KEEP_ALIVE_SOCKETS});
+			}
+			return keepAliveHttpsAgent;
+		}
+		if (!keepAliveHttpAgent) {
+			const {Agent} = require('http');
+			keepAliveHttpAgent = new Agent({keepAlive: true, maxSockets: this.MAX_KEEP_ALIVE_SOCKETS});
+		}
+		return keepAliveHttpAgent;
 	}
 }

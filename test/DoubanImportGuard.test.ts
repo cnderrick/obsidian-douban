@@ -71,6 +71,7 @@ describe("Douban import response guards", () => {
 		const plugin = {
 			putToObsidian: jest.fn(),
 			settingsManager: {
+				isDebug: () => false,
 				debug: jest.fn(),
 				getHeaders: () => ({}),
 				getSelector: (): string[] => [],

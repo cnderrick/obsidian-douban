@@ -47,6 +47,8 @@ export default class DoubanPlugin extends Plugin {
 	public statusHolder: GlobalStatusHolder;
 	public onlineData: DoubanPluginOnlineData;
 	public settingTab: DoubanSettingTab;
+	/** 状态栏清空定时器, 复用同一个句柄 */
+	private statusBarTimer: number = null;
 
 
 	async putToObsidian(context: HandleContext, extract: DoubanSubject) {
@@ -359,6 +361,10 @@ export default class DoubanPlugin extends Plugin {
 
 
 	async onunload() {
+		if (this.statusBarTimer != null) {
+			window.clearTimeout(this.statusBarTimer);
+			this.statusBarTimer = null;
+		}
 		if (this.statusHolder.syncStatus) {
 			await this.statusHolder.onunload();
 		}
@@ -380,7 +386,14 @@ export default class DoubanPlugin extends Plugin {
 		if (!this.settings.statusBar || !this.doubanStatusBar) {
 			return;
 		}
-		setTimeout(() => this.doubanStatusBar.empty(), BasicConst.CLEAN_STATUS_BAR_DELAY)
+		// 每个条目都新建一个 setTimeout 会在长同步里堆出成千上万个回调, 这里复用同一个
+		if (this.statusBarTimer != null) {
+			window.clearTimeout(this.statusBarTimer);
+		}
+		this.statusBarTimer = window.setTimeout(() => {
+			this.doubanStatusBar.empty();
+			this.statusBarTimer = null;
+		}, BasicConst.CLEAN_STATUS_BAR_DELAY)
 	}
 
 	async sync(context: HandleContext) {

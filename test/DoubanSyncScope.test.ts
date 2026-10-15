@@ -20,12 +20,13 @@ import DoubanMovieCollectListHandler from "../src/org/wanxp/douban/sync/handler/
 import DoubanMovieWishListHandler from "../src/org/wanxp/douban/sync/handler/list/DoubanMovieWishListHandler";
 import DoubanMovieDoListHandler from "../src/org/wanxp/douban/sync/handler/list/DoubanMovieDoListHandler";
 import DoubanSubject from "../src/org/wanxp/douban/data/model/DoubanSubject";
+import SyncStatusHolder from "../src/org/wanxp/douban/sync/model/SyncStatusHolder";
 import {SyncType} from "../src/org/wanxp/constant/Constsant";
 import {DoubanHttpUtil} from "../src/org/wanxp/utils/DoubanHttpUtil";
 
 const PAGE_SIZE = 30;
 /** 各状态的条目总数, 0 表示该状态为空(与真实页面一致: .subject-num 显示 1-0 / 0) */
-const STATE_TOTALS: Record<string, number> = {collect: 95, wish: 5, do: 0};
+let stateTotals: Record<string, number> = {collect: 95, wish: 5, do: 0};
 
 const stateOf = (url: string): string => {
 	const matched = url.match(/\/(collect|wish|do)[?&]/);
@@ -72,13 +73,22 @@ const movieListHandlers = (): DoubanListHandler[] => [
 ];
 
 const makeContext = () => {
-	const syncStatus = {
-		setAllTotal: jest.fn(),
-		totalNum: jest.fn(),
-		getTotal: jest.fn(() => 0),
-		getHasHandle: jest.fn(() => 0),
-		shouldSync: () => true,
-		unHandle: jest.fn(),
+	const syncStatus = new SyncStatusHolder({
+		syncType: "movie",
+		scope: "ALL",
+		dataFilePath: "",
+	} as any);
+	syncStatus.initSyncHandledData([]);
+	const recorded: {allTotals: number[], totalNums: number[]} = {allTotals: [], totalNums: []};
+	const originalSetAllTotal = syncStatus.setAllTotal.bind(syncStatus);
+	syncStatus.setAllTotal = (value: number): void => {
+		recorded.allTotals.push(value);
+		originalSetAllTotal(value);
+	};
+	const originalTotalNum = syncStatus.totalNum.bind(syncStatus);
+	syncStatus.totalNum = (value: number): void => {
+		recorded.totalNums.push(value);
+		originalTotalNum(value);
 	};
 	const context = {
 		plugin: {
@@ -90,27 +100,28 @@ const makeContext = () => {
 		action: "Sync",
 		syncStatusHolder: {syncStatus},
 	} as any;
-	return {context, syncStatus};
+	return {context, syncStatus, recorded};
 };
 
 describe("sync scope", () => {
 	beforeEach(() => {
 		requestedUrls.length = 0;
+		stateTotals = {collect: 95, wish: 5, do: 0};
 		(DoubanHttpUtil.httpRequestGet as jest.Mock).mockImplementation(async (url: string) => {
 			requestedUrls.push(url);
 			const matched = url.match(/[?&]start=(\d+)/);
 			const start = matched ? Number(matched[1]) : 0;
-			return listPageHtml(start, STATE_TOTALS[stateOf(url)] ?? 0);
+			return listPageHtml(start, stateTotals[stateOf(url)] ?? 0);
 		});
 	});
 
 	it("prepares every state and reports their totals as one sum", async () => {
-		const {context, syncStatus} = makeContext();
+		const {context, recorded} = makeContext();
 		const handler = new TestSyncHandler(movieListHandlers(), []);
 		await (handler as any).prepareSyncStates({scope: "ALL", syncType: "movie"} as any, context);
 
 		expect((handler as any).syncStates.map((state: any) => state.total)).toEqual([95, 5, 0]);
-		expect(syncStatus.setAllTotal).toHaveBeenCalledWith(100);
+		expect(recorded.allTotals).toEqual([100]);
 		expect(new Set(requestedUrls.map(stateOf))).toEqual(new Set(["collect", "wish", "do"]));
 	});
 
@@ -124,7 +135,7 @@ describe("sync scope", () => {
 
 	it("walks every state during a run and uses the summed denominator", async () => {
 		const handled: string[] = [];
-		const {context, syncStatus} = makeContext();
+		const {context, recorded} = makeContext();
 		const handler = new TestSyncHandler(movieListHandlers(), handled);
 
 		await handler.sync({
@@ -136,7 +147,7 @@ describe("sync scope", () => {
 
 		expect(new Set(requestedUrls.map(stateOf))).toEqual(new Set(["collect", "wish", "do"]));
 		// 分母 = 各状态首页条目数之和(收藏 30 + 想看 5 + 在看 0)
-		expect(syncStatus.totalNum).toHaveBeenCalledWith(35);
+		expect(recorded.totalNums).toEqual([35, 35]);
 		expect(handled.length).toBe(35);
 	});
 
@@ -145,5 +156,16 @@ describe("sync scope", () => {
 		const handler = new TestSyncHandler(movieListHandlers(), []);
 		await (handler as any).prepareSyncStates({scope: "ALL", syncType: "movie"} as any, context);
 		expect((handler as any).computeRunTotal({syncConditionType: "all"} as any)).toBe(100);
+	});
+
+	it("uses the slow pace once the run is large", async () => {
+		const {context, syncStatus} = makeContext();
+		const handler = new TestSyncHandler(movieListHandlers(), []);
+
+		syncStatus.totalNum(95);
+		expect((handler as any).delayRange(context)).toEqual({min: 4000, max: 8000});
+
+		syncStatus.totalNum(500);
+		expect((handler as any).delayRange(context)).toEqual({min: 10000, max: 15000});
 	});
 });

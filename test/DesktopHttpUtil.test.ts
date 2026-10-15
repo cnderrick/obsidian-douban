@@ -7,11 +7,18 @@ jest.mock("obsidian", () => ({Platform: {isDesktopApp: true}}), {virtual: true})
 describe("DesktopHttpUtil", () => {
 	let server: Server;
 	let port: number;
+	let keepAlivePorts: number[];
 
 	beforeAll(done => {
 		let retryAttempts = 0;
+		keepAlivePorts = [];
 		server = createServer((request, response) => {
 			if (request.url === "/hang") {
+				return;
+			}
+			if (request.url === "/keep-alive") {
+				keepAlivePorts.push(request.socket.remotePort);
+				response.writeHead(200).end("ok");
 				return;
 			}
 			if (request.url === "/retry") {
@@ -85,5 +92,19 @@ describe("DesktopHttpUtil", () => {
 		);
 		expect(response.status).toBe(200);
 		expect(response.textString).toBe("retried");
+	});
+
+	it("reuses one connection for sequential requests", async () => {
+		keepAlivePorts.length = 0;
+		await DesktopHttpUtil.request(`http://127.0.0.1:${port}/keep-alive`, {}, undefined, {retryCount: 0});
+		await DesktopHttpUtil.request(`http://127.0.0.1:${port}/keep-alive`, {}, undefined, {retryCount: 0});
+		expect(keepAlivePorts.length).toBe(2);
+		expect(new Set(keepAlivePorts).size).toBe(1);
+	});
+
+	it("configures a keep-alive agent with a bounded socket pool", () => {
+		const agent: any = (DesktopHttpUtil as any).getKeepAliveAgent(`http://127.0.0.1:${port}/`);
+		expect(agent.keepAlive).toBe(true);
+		expect(agent.maxSockets).toBe(4);
 	});
 });
