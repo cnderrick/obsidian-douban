@@ -1,5 +1,5 @@
 import {DoubanPluginSetting} from "../douban/setting/model/DoubanPluginSetting";
-import {PersonNameMode, PictureBedSetting_PicGo, PictureBedType, SupportType} from "./Constsant";
+import {PersonNameMode, PictureBedSetting_PicGo, PictureBedType, SupportType, SYNC_CONCURRENCY_DEFAULT} from "./Constsant";
 
 export const DEFAULT_SETTINGS: DoubanPluginSetting = {
 	pictureBedFlag: false,
@@ -64,6 +64,7 @@ export const DEFAULT_SETTINGS: DoubanPluginSetting = {
 	},
 	searchDefaultType: SupportType.all,
 	arrayLengthLimits: [],
+	syncConcurrency: SYNC_CONCURRENCY_DEFAULT,
 
 }
 

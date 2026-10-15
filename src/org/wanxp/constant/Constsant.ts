@@ -410,6 +410,18 @@ sec-ch-ua-platform: "Windows"
 `)
 
 /**
+ * 同步的默认并发数: 1 表示完全串行, 与历史行为一致。
+ * 调高后每个条目的等待仍保留, 只是让多个条目的等待与请求重叠, 请求会更密,
+ * 触发豆瓣风控的风险也随之上升。
+ */
+export const SYNC_CONCURRENCY_DEFAULT: number = 1;
+
+/**
+ * 同步并发数的上限
+ */
+export const SYNC_CONCURRENCY_MAX: number = 5;
+
+/**
  * 属性设置
  */
 export const ONLINE_SETTING_DEFAULT: DoubanPluginOnlineSettings = {

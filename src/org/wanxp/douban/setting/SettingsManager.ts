@@ -234,6 +234,7 @@ export default class SettingsManager {
 		this.settings.cacheImage = DEFAULT_SETTINGS.cacheImage;
 		this.settings.cacheHighQuantityImage = DEFAULT_SETTINGS.cacheHighQuantityImage;
 		this.settings.showAfterCreate = DEFAULT_SETTINGS.showAfterCreate;
+		this.settings.syncConcurrency = DEFAULT_SETTINGS.syncConcurrency;
 	}
 
 	clearLoginInfo() {

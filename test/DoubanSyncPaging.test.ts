@@ -41,18 +41,19 @@ const listPageHtml = (start: number, total: number) => {
 
 const requestedUrls: string[] = [];
 
-const context = () => ({
-	plugin: {
-		statusHolder: {
-			syncing: () => true,
-			syncStatus: {setAllTotal: jest.fn(), setMessage: jest.fn()},
+const context = () => {
+	const syncStatus = {setAllTotal: jest.fn(), setMessage: jest.fn()};
+	return {
+		plugin: {
+			statusHolder: {syncing: () => true, syncStatus},
+			settingsManager: {getHeaders: () => ({}), debug: (): void => undefined},
 		},
-		settingsManager: {getHeaders: () => ({}), debug: (): void => undefined},
-	},
-	userComponent: {getUserId: () => "39098150"},
-	settings: {},
-	action: "Sync",
-}) as any;
+		userComponent: {getUserId: () => "39098150"},
+		settings: {},
+		action: "Sync",
+		syncStatusHolder: {syncStatus},
+	} as any;
+};
 
 const syncConfig = (from: string, to: string) => ({
 	syncType: "movie",
@@ -63,12 +64,17 @@ const syncConfig = (from: string, to: string) => ({
 	dataFilePath: "",
 }) as any;
 
-/** 调用私有的 getByTimeLimit, 返回收集到的条目 */
-const fetchItems = (
+/** 与 sync() 一致: 先准备状态(确定处理器与总数), 再按日期范围收集条目 */
+const fetchItems = async (
 	handler: DoubanMovieSyncHandler,
 	from: string,
 	to: string,
-): Promise<SubjectListItem[]> => (handler as any).getByTimeLimit(syncConfig(from, to), context());
+): Promise<SubjectListItem[]> => {
+	const syncContext = context();
+	const config = syncConfig(from, to);
+	await (handler as any).prepareSyncStates(config, syncContext);
+	return (handler as any).getByTimeLimit(config, syncContext);
+};
 
 const startOffsets = (): (number | null)[] => requestedUrls.map(url => {
 	const matched = url.match(/[?&]start=(\d+)/);

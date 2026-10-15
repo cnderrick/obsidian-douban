@@ -2,6 +2,7 @@ import DoubanPlugin from "../../../main";
 import {
 	BasicConst,
 	PAGE_SIZE,
+	SYNC_CONCURRENCY_DEFAULT,
 	SyncConditionType,
 	SyncType,
 } from "../../../constant/Constsant";
@@ -17,6 +18,7 @@ import { log } from "../../../utils/Logutil";
 import { i18nHelper } from "../../../lang/helper";
 import { SearchPage } from "../../data/model/SearchPage";
 import {SearchPageTypeOf} from "../../data/model/SearchPageTypeOf";
+import SyncStatusHolder from "../model/SyncStatusHolder";
 
 /**
  * 取一页条目里最新的更新日期; 一页里没有任何可解析日期时返回 null。
@@ -363,36 +365,53 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 	 *
 	 * 进度分母用整轮同步的 runTotal(ALL 时是各状态之和), 只在开始时确定一次 ——
 	 * 旧实现每页都拿页内总数覆盖它, 而分子是全程累加的, 于是跨页后分子会超过分母。
+	 *
+	 * 并发默认是 1(串行, 与历史行为一致)。调高并发后每个条目之间的等待依然保留,
+	 * 只是让多个条目的等待与请求重叠; 请求会变得更密, 触发豆瓣风控的风险也随之上升。
 	 */
 	private async handleItems(
 		items: SubjectListItem[],
 		context: HandleContext,
 	): Promise<void> {
-		if (!items || items.length == 0) {
+		const pending: SubjectListItem[] = (items || []).filter((item) => item);
+		if (pending.length == 0) {
 			return;
 		}
 		const { syncStatus } = context.syncStatusHolder;
-		syncStatus.totalNum(this.runTotal > 0 ? this.runTotal : items.length);
-		const {min, max} = this.delayRange(context);
-		for (const item of items) {
-			if (!context.plugin.statusHolder.syncing()) {
-				return;
-			}
-			try {
-				if (syncStatus.shouldSync(item.id)) {
-					let subject: DoubanSubject =
-						await this.doubanSubjectLoadHandler.handle(
-							item.id,
-							context,
-						);
-
-					await sleepRange(min, max);
-				} else {
-					syncStatus.unHandle(item.id, item.title);
+		syncStatus.totalNum(this.runTotal > 0 ? this.runTotal : pending.length);
+		const delay = this.delayRange(context);
+		const concurrency: number = Math.max(1, Math.min(
+			Number(context.settings.syncConcurrency) || SYNC_CONCURRENCY_DEFAULT,
+			pending.length,
+		));
+		let cursor = 0;
+		const workers = Array.from({length: concurrency}, async () => {
+			while (context.plugin.statusHolder.syncing()) {
+				const index = cursor++;
+				if (index >= pending.length) {
+					return;
 				}
-			} catch (e) {
-				log.notice(i18nHelper.getMessage("130120"));
+				await this.handleItem(pending[index], context, syncStatus, delay);
 			}
+		});
+		await Promise.all(workers);
+	}
+
+	private async handleItem(
+		item: SubjectListItem,
+		context: HandleContext,
+		syncStatus: SyncStatusHolder,
+		delay: {min: number, max: number},
+	): Promise<void> {
+		try {
+			if (syncStatus.shouldSync(item.id)) {
+				await this.doubanSubjectLoadHandler.handle(item.id, context);
+				await sleepRange(delay.min, delay.max);
+			} else {
+				syncStatus.unHandle(item.id, item.title);
+			}
+		} catch (e) {
+			log.notice(i18nHelper.getMessage("130120"));
 		}
 	}
 

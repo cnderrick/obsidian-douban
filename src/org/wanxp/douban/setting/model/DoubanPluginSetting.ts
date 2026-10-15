@@ -46,4 +46,5 @@ export interface DoubanPluginSetting {
 	scoreSetting: ScoreSetting,
 	searchDefaultType: SupportType,
 	arrayLengthLimits: ArrayLengthLimit[],
+	syncConcurrency: number,
 }

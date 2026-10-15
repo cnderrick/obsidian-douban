@@ -336,6 +336,9 @@ PS: This file could be delete if you want to.
 	'125031': `Clear Sync Cache`,
 	'125032': `Clear Sync Cache, It will clear all the sync data, so that you can sync again`,
 
+	'125051': `Sync concurrency`,
+	'125052': `1 syncs items one after another. Higher values keep the per-item delay but overlap it across items, which is faster while sending requests more densely, so weigh the risk of Douban rate limiting.`,
+
 	'125033': `Are you sure you want to perform this operation?`,
 
 	"125034": `Export Settings`,

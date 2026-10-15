@@ -10,6 +10,7 @@ import { log } from "../../utils/Logutil";
 import {ConfirmDialogModal} from "../component/ConfirmDialogModal";
 import {DoubanSearchModal} from "../data/search/DoubanSearchModal";
 import {DoubanPluginSetting} from "./model/DoubanPluginSetting";
+import {SYNC_CONCURRENCY_DEFAULT, SYNC_CONCURRENCY_MAX} from "../../constant/Constsant";
 import TimeUtil from "../../utils/TimeUtil";
 
 
@@ -90,6 +91,19 @@ function showAdvancedSettings(containerEl: HTMLElement, manager: SettingsManager
 					}else{
 						log.info("调试模式关闭");
 					}
+					await manager.plugin.saveSettings();
+				});
+		});
+	new Setting(containerEl)
+		.setName(i18nHelper.getMessage('125051'))
+		.setDesc(i18nHelper.getMessage('125052'))
+		.addSlider((sliderComponent) => {
+			sliderComponent
+				.setLimits(SYNC_CONCURRENCY_DEFAULT, SYNC_CONCURRENCY_MAX, 1)
+				.setValue(manager.plugin.settings.syncConcurrency)
+				.setDynamicTooltip()
+				.onChange(async (value) => {
+					manager.plugin.settings.syncConcurrency = value;
 					await manager.plugin.saveSettings();
 				});
 		});

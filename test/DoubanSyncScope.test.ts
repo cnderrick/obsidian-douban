@@ -51,14 +51,30 @@ const listPageHtml = (start: number, total: number) => {
 
 const requestedUrls: string[] = [];
 
-class TestSyncHandler extends DoubanAbstractSyncHandler<DoubanSubject> {
-	constructor(listHandlers: DoubanListHandler[], handled: string[]) {
-		super({} as any, {
+/** 记录被处理的条目, 以及同时处于处理中的最大条目数 */
+const makeLoader = () => {
+	const handled: string[] = [];
+	let inFlight = 0;
+	let maxInFlight = 0;
+	return {
+		handled,
+		getMaxInFlight: () => maxInFlight,
+		loader: {
 			handle: async (id: string) => {
+				inFlight++;
+				maxInFlight = Math.max(maxInFlight, inFlight);
+				await new Promise((resolve) => setTimeout(resolve, 1));
+				inFlight--;
 				handled.push(id);
 				return {} as any;
 			},
-		} as any, listHandlers);
+		},
+	};
+};
+
+class TestSyncHandler extends DoubanAbstractSyncHandler<DoubanSubject> {
+	constructor(listHandlers: DoubanListHandler[], loader: any) {
+		super({} as any, loader, listHandlers);
 	}
 
 	getSyncType(): SyncType {
@@ -103,6 +119,16 @@ const makeContext = () => {
 	return {context, syncStatus, recorded};
 };
 
+const runSync = (
+	handler: TestSyncHandler,
+	context: any,
+	syncConfig: object,
+): Promise<void> => handler.sync({
+	syncType: "movie",
+	dataFilePath: "",
+	...syncConfig,
+} as any, context);
+
 describe("sync scope", () => {
 	beforeEach(() => {
 		requestedUrls.length = 0;
@@ -117,7 +143,7 @@ describe("sync scope", () => {
 
 	it("prepares every state and reports their totals as one sum", async () => {
 		const {context, recorded} = makeContext();
-		const handler = new TestSyncHandler(movieListHandlers(), []);
+		const handler = new TestSyncHandler(movieListHandlers(), makeLoader().loader);
 		await (handler as any).prepareSyncStates({scope: "ALL", syncType: "movie"} as any, context);
 
 		expect((handler as any).syncStates.map((state: any) => state.total)).toEqual([95, 5, 0]);
@@ -127,45 +153,65 @@ describe("sync scope", () => {
 
 	it("prepares a single state when a concrete scope is selected", async () => {
 		const {context} = makeContext();
-		const handler = new TestSyncHandler(movieListHandlers(), []);
+		const handler = new TestSyncHandler(movieListHandlers(), makeLoader().loader);
 		await (handler as any).prepareSyncStates({scope: "collect", syncType: "movie"} as any, context);
 
 		expect((handler as any).syncStates.map((state: any) => state.total)).toEqual([95]);
 	});
 
 	it("walks every state during a run and uses the summed denominator", async () => {
-		const handled: string[] = [];
+		const tracker = makeLoader();
 		const {context, recorded} = makeContext();
-		const handler = new TestSyncHandler(movieListHandlers(), handled);
+		const handler = new TestSyncHandler(movieListHandlers(), tracker.loader);
 
-		await handler.sync({
-			scope: "ALL",
-			syncType: "movie",
-			syncConditionType: "lastThirty",
-			dataFilePath: "",
-		} as any, context);
+		await runSync(handler, context, {scope: "ALL", syncConditionType: "lastThirty"});
 
 		expect(new Set(requestedUrls.map(stateOf))).toEqual(new Set(["collect", "wish", "do"]));
 		// 分母 = 各状态首页条目数之和(收藏 30 + 想看 5 + 在看 0)
 		expect(recorded.totalNums).toEqual([35, 35]);
-		expect(handled.length).toBe(35);
+		expect(tracker.handled.length).toBe(35);
 	});
 
 	it("counts the run total as the sum of the state totals", async () => {
 		const {context} = makeContext();
-		const handler = new TestSyncHandler(movieListHandlers(), []);
+		const handler = new TestSyncHandler(movieListHandlers(), makeLoader().loader);
 		await (handler as any).prepareSyncStates({scope: "ALL", syncType: "movie"} as any, context);
 		expect((handler as any).computeRunTotal({syncConditionType: "all"} as any)).toBe(100);
 	});
 
 	it("uses the slow pace once the run is large", async () => {
 		const {context, syncStatus} = makeContext();
-		const handler = new TestSyncHandler(movieListHandlers(), []);
+		const handler = new TestSyncHandler(movieListHandlers(), makeLoader().loader);
 
 		syncStatus.totalNum(95);
 		expect((handler as any).delayRange(context)).toEqual({min: 4000, max: 8000});
 
 		syncStatus.totalNum(500);
 		expect((handler as any).delayRange(context)).toEqual({min: 10000, max: 15000});
+	});
+
+	it("processes one item at a time by default", async () => {
+		stateTotals = {collect: 5, wish: 0, do: 0};
+		const tracker = makeLoader();
+		const {context} = makeContext();
+		const handler = new TestSyncHandler(movieListHandlers(), tracker.loader);
+
+		await runSync(handler, context, {scope: "collect", syncConditionType: "lastThirty"});
+
+		expect(tracker.handled.length).toBe(5);
+		expect(tracker.getMaxInFlight()).toBe(1);
+	});
+
+	it("overlaps items up to the configured concurrency", async () => {
+		stateTotals = {collect: 5, wish: 0, do: 0};
+		const tracker = makeLoader();
+		const {context} = makeContext();
+		context.settings = {syncConcurrency: 3};
+		const handler = new TestSyncHandler(movieListHandlers(), tracker.loader);
+
+		await runSync(handler, context, {scope: "collect", syncConditionType: "lastThirty"});
+
+		expect(tracker.handled.length).toBe(5);
+		expect(tracker.getMaxInFlight()).toBe(3);
 	});
 });
