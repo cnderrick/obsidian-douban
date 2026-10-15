@@ -55,6 +55,17 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 	private plugin: DoubanPlugin;
 	private doubanSubjectLoadHandler: DoubanSubjectLoadHandler<T>;
 	private doubanListHandlers: DoubanListHandler[];
+	/** 本次同步要遍历的状态; scope 为具体状态时只有一个, scope=ALL 时是全部状态 */
+	private syncStates: {
+		handler: DoubanListHandler,
+		total: number,
+		firstPageSize: number,
+		firstPage: SearchPageTypeOf<SubjectListItem>,
+	}[] = [];
+	/** 当前遍历到的状态下标 */
+	private stateIndex: number = 0;
+	/** 本次同步的分母: 需要处理的条目总数 */
+	private runTotal: number = 0;
 
 	constructor(
 		plugin: DoubanPlugin,
@@ -66,6 +77,73 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		this.doubanListHandlers = doubanListHandlers;
 	}
 
+	/**
+	 * 准备本次同步要遍历的状态。
+	 *
+	 * scope 是具体状态时只有一个; scope=ALL 时是全部状态(如 看过/想看/在看),
+	 * 逐个状态分页遍历 —— 旧实现只取匹配到的第一个 handler, 于是「全部」永远
+	 * 只同步了第一个状态。
+	 *
+	 * 每个状态先取第 1 页, 用来得到该状态的总数: 进度分母是各状态之和,
+	 * 否则分母只代表一个状态, 「需要同步数」会比它大。
+	 */
+	private async prepareSyncStates(syncConfig: SyncConfig, context: HandleContext): Promise<void> {
+		this.syncStates = [];
+		this.stateIndex = 0;
+		const handlers: DoubanListHandler[] =
+			this.doubanListHandlers.filter((h) => h.support(syncConfig));
+		for (const handler of handlers) {
+			if (!context.plugin.statusHolder.syncing()) {
+				break;
+			}
+			const firstPage = await handler.getPageData(context, 0);
+			this.syncStates.push({
+				handler,
+				total: firstPage ? firstPage.total : 0,
+				firstPageSize: firstPage && firstPage.list ? firstPage.list.length : 0,
+				firstPage: firstPage ? firstPage : null,
+			});
+		}
+		context.syncStatusHolder.syncStatus.setAllTotal(
+			this.syncStates.reduce((sum, state) => sum + state.total, 0)
+		);
+	}
+
+	/**
+	 * 计算本次同步要处理的条目总数(进度分母)。
+	 */
+	private computeRunTotal(syncConfig: SyncConfig): number {
+		switch (syncConfig.syncConditionType) {
+			case SyncConditionType.LAST_THIRTY:
+				return this.syncStates.reduce(
+					(sum, state) => sum + Math.min(state.firstPageSize, state.total), 0);
+			case SyncConditionType.CUSTOM_ITEM: {
+				const from = syncConfig.syncConditionCountFromValue;
+				const to = syncConfig.syncConditionCountToValue;
+				return this.syncStates.reduce((sum, state) => {
+					const end = Math.min(to ? to : state.total, state.total);
+					return sum + Math.max(0, end - from + 1);
+				}, 0);
+			}
+			default:
+				return this.syncStates.reduce((sum, state) => sum + state.total, 0);
+		}
+	}
+
+	/**
+	 * 依次对每个状态执行一次 body; 每次把 context.syncOffset 重置到该状态的第 1 页。
+	 */
+	private async forEachState(context: HandleContext, body: () => Promise<void>): Promise<void> {
+		for (let index = 0; index < this.syncStates.length; index++) {
+			if (!context.plugin.statusHolder.syncing()) {
+				return;
+			}
+			this.stateIndex = index;
+			context.syncOffset = 0;
+			await body();
+		}
+	}
+
 	support(t: string): boolean {
 		return this.getSyncType() == t;
 	}
@@ -73,14 +151,16 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 	abstract getSyncType(): SyncType;
 
 	async sync(syncConfig: SyncConfig, context: HandleContext): Promise<void> {
+		await this.prepareSyncStates(syncConfig, context);
+		this.runTotal = this.computeRunTotal(syncConfig);
 		if (syncConfig.syncConditionType == SyncConditionType.CUSTOM_TIME) {
 			await this.syncByTimeLimit(syncConfig, context);
 		} else if (syncConfig.syncConditionType == SyncConditionType.CUSTOM_ITEM) {
-			await this.syncByCountLimit(syncConfig, context);
+			await this.forEachState(context, () => this.syncByCountLimit(syncConfig, context));
 		}else if (syncConfig.syncConditionType == SyncConditionType.ALL) {
-			await this.syncAll(syncConfig, context);
+			await this.forEachState(context, () => this.syncAll(syncConfig, context));
 		}else if (syncConfig.syncConditionType == SyncConditionType.LAST_THIRTY) {
-			await this.syncLastThirty(syncConfig, context);
+			await this.forEachState(context, () => this.syncLastThirty(syncConfig, context));
 		}else {
 			log.warn(i18nHelper.getMessage("110083"));
 		}
@@ -193,8 +273,19 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		return needHandleItems;
 	}
 	async syncByTimeLimit(syncConfig: SyncConfig, context: HandleContext) {
-		const items = await this.getByTimeLimit(syncConfig, context);
-		if (!items || items.length == 0) {
+		const items: SubjectListItem[] = [];
+		for (let index = 0; index < this.syncStates.length; index++) {
+			if (!context.plugin.statusHolder.syncing()) {
+				break;
+			}
+			this.stateIndex = index;
+			context.syncOffset = 0;
+			const stateItems = await this.getByTimeLimit(syncConfig, context);
+			if (stateItems && stateItems.length > 0) {
+				items.push(...stateItems);
+			}
+		}
+		if (items.length == 0) {
 			return;
 		}
 
@@ -203,17 +294,16 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 			syncConfig,
 			context,
 		);
-
-		const searchPage = new SearchPageTypeOf<SubjectListItem>(subjectListItems.length,
-			1,
-			subjectListItems.length,
-			null,subjectListItems);
-		await this.handleItems(searchPage, subjectListItems, context);
+		if (!subjectListItems || subjectListItems.length == 0) {
+			return;
+		}
+		this.runTotal = subjectListItems.length;
+		await this.handleItems(subjectListItems, context);
 
 	}
 
 	/**
-	 * 取一页列表数据。
+	 * 取一页列表数据。处理器来自准备阶段确定的状态列表。
 	 *
 	 * @param pageNum 页号(从 1 开始); 不传时沿用 context.syncOffset 表示的偏移
 	 */
@@ -222,14 +312,21 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		context: HandleContext,
 		pageNum?: number,
 	): Promise<SearchPageTypeOf<SubjectListItem>> {
-		const supportHandlers: DoubanListHandler[] =
-			this.doubanListHandlers.filter((h) => h.support(syncConfig));
-		const handler = supportHandlers[0];
-		if (!context.plugin.statusHolder.syncing() || !handler) {
+		const state = this.syncStates[this.stateIndex];
+		if (!context.plugin.statusHolder.syncing() || !state) {
 			return SearchPage.emptyWithNoType();
 		}
-		const offset = pageNum == null ? undefined : Math.max(0, (pageNum - 1) * PAGE_SIZE);
-		const item = await handler.getPageData(context, offset);
+		const offset: number = pageNum == null
+			? (context.syncOffset == null ? 0 : context.syncOffset)
+			: Math.max(0, (pageNum - 1) * PAGE_SIZE);
+		if (offset == 0 && state.firstPage) {
+			// 第 1 页在准备阶段已经取回, 直接复用, 不重复请求
+			const firstPage = state.firstPage;
+			state.firstPage = null;
+			context.syncOffset = 0;
+			return firstPage;
+		}
+		const item = await state.handler.getPageData(context, offset);
 		if (!context.plugin.statusHolder.syncing()) {
 			return SearchPage.emptyWithNoType();
 		}
@@ -247,8 +344,13 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		return items;
 	}
 
+	/**
+	 * 处理一批条目。
+	 *
+	 * 进度分母用整轮同步的 runTotal(ALL 时是各状态之和), 只在开始时确定一次 ——
+	 * 旧实现每页都拿页内总数覆盖它, 而分子是全程累加的, 于是跨页后分子会超过分母。
+	 */
 	private async handleItems(
-		searchPage: SearchPage,
 		items: SubjectListItem[],
 		context: HandleContext,
 	): Promise<void> {
@@ -256,7 +358,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 			return;
 		}
 		const { syncStatus } = context.syncStatusHolder;
-		syncStatus.totalNum(searchPage.total);
+		syncStatus.totalNum(this.runTotal > 0 ? this.runTotal : items.length);
 		const needHandled: number =
 			syncStatus.getTotal() - syncStatus.getHasHandle();
 		syncStatus.setNeedHandled(needHandled);
@@ -371,7 +473,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 
 			searchPage.total = needHandleTotalCustomItem;
 			//处理
-			await this.handleItems(searchPage, subjectListItems, context);
+			await this.handleItems(subjectListItems, context);
 
 			context.syncOffset = context.syncOffset + PAGE_SIZE;
 			await sleepRange(
@@ -420,7 +522,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 				);
 				continue;
 			}
-			await this.handleItems(searchPage, subjectListItems, context);
+			await this.handleItems(subjectListItems, context);
 			context.syncOffset = context.syncOffset + PAGE_SIZE;
 			await sleepRange(
 				BasicConst.CALL_DOUBAN_DELAY,
@@ -436,7 +538,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		if (!context.plugin.statusHolder.syncing()) {
 			return;
 		}
-		const {list, total} = searchPage;
+		const {list} = searchPage;
 		if (
 			!searchPage ||
 			!list ||
@@ -453,7 +555,6 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		if (!subjectListItems || subjectListItems.length == 0) {
 			return;
 		}
-		searchPage.total = Math.min(list.length, total);
-		await this.handleItems(searchPage, subjectListItems, context);
+		await this.handleItems(subjectListItems, context);
 	}
 }

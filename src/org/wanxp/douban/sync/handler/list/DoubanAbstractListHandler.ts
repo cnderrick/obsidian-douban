@@ -41,9 +41,6 @@ export default abstract class DoubanAbstractListHandler
 			return SearchPage.emptyWithNoType();
 		}
 		let subjectListItemSearchPageTypeOf = await this.getPageList(url, context);
-		if (subjectListItemSearchPageTypeOf) {
-			context.plugin.statusHolder.syncStatus.setAllTotal(subjectListItemSearchPageTypeOf.total)
-		}
 		return subjectListItemSearchPageTypeOf;
 	}
 
