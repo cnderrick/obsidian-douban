@@ -157,36 +157,19 @@ export default class SyncStatusHolder {
 		data.forEach((d) => {
 			handledData.set(d.key,new Set<string>(d.value));
 		})
+		// 只在本轮关掉增量时清空**当前 key** 的记录。
+		//
+		// 这里以前还会调用 resetTypeOtherSyncHandledData(), 把「同一 dataFilePath 段下其它 key」
+		// 的记录一并 clear。而默认 dataFilePath 是空串、所有类型共用同一段, 于是每同步一个类别
+		// 就会清掉其它所有类别的记录 —— 交替同步电影/书籍时增量完全失效, 每次都要重翻整份列表;
+		// 被清空的 Set 还会被 saveHandledData 写回, 让记录彻底消失。已删除该行为。
 		if (!this.syncConfig.incrementalUpdate) {
 			this.resetSyncHandledData();
 		}
-		this.resetTypeOtherSyncHandledData();
 	}
 
 	public resetSyncHandledData() {
 		return this.handledData.set(this.key, new Set());
-	}
-
-	public resetTypeOtherSyncHandledData() {
-		this.handledData.forEach((value, key) => {
-			if (this.needClearByKey(this.key, key)) {
-				value.clear();
-			}
-		});
-	}
-
-	private needClearByKey(handleKey:string, savedKey:string):boolean {
-		if (handleKey == savedKey) {
-			return false;
-		}
-		let handledKeys = handleKey.split('+');
-		let savedKeys = savedKey.split('+');
-		handledKeys = handledKeys??[''];
-		savedKeys = savedKeys??[''];
-		if (handledKeys[0] == savedKeys[0]) {
-			return true;
-		}
-		return false;
 	}
 
 	public setMessage(s: string) {

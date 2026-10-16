@@ -57,6 +57,10 @@ export default class GlobalStatusHolder {
 		}
 		const data:SyncHandledData[] = [];
 		this.syncStatus.handledData.forEach((value, key) => {
+			// 空记录不写回: 它既占体积, 又会让"这个 key 被清空过"的中间态一直留在设置里
+			if (value.size == 0) {
+				return;
+			}
 			data.push({key: key, value: Array.from(value)});
 		})
 		this._plugin.settings.syncHandledDataArray = data;

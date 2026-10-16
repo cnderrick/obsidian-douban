@@ -34,3 +34,33 @@ describe("SyncStatusHolder progress counters", () => {
 		expect(holder.getNotHandled()).toBe(7);
 	});
 });
+
+describe("SyncStatusHolder handled data", () => {
+	const incremental = (over: any = {}) =>
+		({syncType: "movie", scope: "ALL", dataFilePath: "", incrementalUpdate: true, ...over}) as any;
+
+	it("keeps the records of other types when a sync starts", () => {
+		const holder = new SyncStatusHolder(incremental());
+		holder.initSyncHandledData([
+			{key: "+movie+ALL", value: ["1", "2"]},
+			{key: "+book+ALL", value: ["9"]},
+		]);
+
+		expect(holder.shouldSync("1")).toBe(false);
+		expect(Array.from(holder.handledData.get("+movie+ALL"))).toEqual(["1", "2"]);
+		// 默认 dataFilePath 为空串, 所有类型共用同一段; 同步电影不应把书籍的记录抹掉
+		expect(Array.from(holder.handledData.get("+book+ALL"))).toEqual(["9"]);
+	});
+
+	it("clears only the current key when incremental sync is off", () => {
+		const holder = new SyncStatusHolder(incremental({incrementalUpdate: false}));
+		holder.initSyncHandledData([
+			{key: "+movie+ALL", value: ["1"]},
+			{key: "+book+ALL", value: ["9"]},
+		]);
+
+		// 关增量只影响本轮的类型
+		expect(holder.shouldSync("1")).toBe(true);
+		expect(Array.from(holder.handledData.get("+book+ALL"))).toEqual(["9"]);
+	});
+});
