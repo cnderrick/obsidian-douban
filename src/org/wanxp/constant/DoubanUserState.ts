@@ -76,6 +76,12 @@ export const DoubanSubjectStateRecords_THEATER = dynamicStateRecord({
 	[DoubanSubjectState.collect]: '500704',
 }) as { [key in DoubanSubjectState]: string };
 
+/**
+ * 影人收藏没有「想看/看过」这类状态, 这张表只被「解析我的状态」用到,
+ * 而影人详情页没有用户状态, 永远走不到那里 —— 因此直接复用通用状态文案占位。
+ */
+export const DoubanSubjectStateRecords_CELEBRITY = DoubanSubjectStateRecords_ALL;
+
 export const DoubanSubjectStateRecords: { [key in SupportType]: Record<DoubanSubjectState, string> } = {
 	[SupportType.all]:DoubanSubjectStateRecords_ALL,
 	[SupportType.movie]:DoubanSubjectStateRecords_MOVIE,
@@ -85,6 +91,7 @@ export const DoubanSubjectStateRecords: { [key in SupportType]: Record<DoubanSub
 	[SupportType.game]:DoubanSubjectStateRecords_GAME,
 	[SupportType.teleplay]:DoubanSubjectStateRecords_TELEPLAY,
 	[SupportType.theater]:DoubanSubjectStateRecords_THEATER,
+	[SupportType.celebrity]:DoubanSubjectStateRecords_CELEBRITY,
 
 }
 
@@ -130,6 +137,11 @@ export const DoubanSubjectStateRecords_BROADCAST_SYNC = dynamicStateRecord({[ALL
 
 export const DoubanSubjectStateRecords_NOTE_SYNC = dynamicStateRecord({[ALL]: '500004'});
 
+/**
+ * 影人收藏只有一个列表, 没有 scope 可选, 因此只保留「所有」一项。
+ */
+export const DoubanSubjectStateRecords_CELEBRITY_SYNC = dynamicStateRecord({[ALL]: '500004'});
+
 // @ts-ignore
 export const DoubanSubjectStateRecords_MUSIC_SYNC = dynamicStateRecord({
 	// @ts-ignore
@@ -147,6 +159,7 @@ export const DoubanSubjectStateRecords_SYNC: { [key in SyncType]: Record<DoubanS
 	// [SyncType.note]:DoubanSubjectStateRecords_NOTE_SYNC,
 	[SyncType.game]:DoubanSubjectStateRecords_GAME_SYNC,
 	[SyncType.teleplay]:DoubanSubjectStateRecords_TELEPLAY_SYNC,
+	[SyncType.celebrity]:DoubanSubjectStateRecords_CELEBRITY_SYNC,
 	// [SyncType.theater]:DoubanSubjectStateRecords_THEATER_SYNC,
 }
 

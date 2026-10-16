@@ -223,6 +223,7 @@ export default class SettingsManager {
 		this.settings.gameTemplateFile = DEFAULT_SETTINGS.gameTemplateFile;
 		this.settings.teleplayTemplateFile = DEFAULT_SETTINGS.teleplayTemplateFile;
 		this.settings.theaterTemplateFile = DEFAULT_SETTINGS.theaterTemplateFile;
+		this.settings.celebrityTemplateFile = DEFAULT_SETTINGS.celebrityTemplateFile;
 		this.settings.dateFormat = DEFAULT_SETTINGS.dateFormat;
 		this.settings.timeFormat = DEFAULT_SETTINGS.timeFormat;
 		this.settings.searchUrl = DEFAULT_SETTINGS.searchUrl;

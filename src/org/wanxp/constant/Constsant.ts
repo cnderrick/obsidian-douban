@@ -81,6 +81,7 @@ export enum TemplateKey {
 	gameTemplateFile = 'gameTemplateFile',
 	teleplayTemplateFile = 'teleplayTemplateFile',
 	theaterTemplateFile = 'theaterTemplateFile',
+	celebrityTemplateFile = 'celebrityTemplateFile',
 }
 
 export enum SupportType {
@@ -92,6 +93,7 @@ export enum SupportType {
 	game = 'game',
 	teleplay = 'teleplay',
 	theater = 'theater',
+	celebrity = 'celebrity',
 }
 export const SupportTypeMap:object = {
 	"all": SupportType.all,
@@ -102,6 +104,7 @@ export const SupportTypeMap:object = {
 	"game": SupportType.game,
 	"teleplay": SupportType.teleplay,
 	"theater": SupportType.theater,
+	"celebrity": SupportType.celebrity,
 	"ALL": SupportType.all,
 	"MOVIE": SupportType.movie,
 	"BOOK": SupportType.book,
@@ -110,6 +113,7 @@ export const SupportTypeMap:object = {
 	"GAME": SupportType.game,
 	"TELEPLAY": SupportType.teleplay,
 	"THEATER": SupportType.theater,
+	"CELEBRITY": SupportType.celebrity,
 }
 
 
@@ -172,6 +176,13 @@ export enum PropertyName {
 	//teleplay
 	episode = "episode",
 
+	//celebrity
+	gender = "gender",
+	birthday = "birthday",
+	birthplace = "birthplace",
+	profession = "profession",
+	personageId = "personageId",
+
 	//theater
 
 
@@ -203,7 +214,13 @@ function dynamicSubjectTitle<T extends {title: string}>(subject: T, messageKey: 
 	return subject;
 }
 
-export const SearchTypeRecords: { [key in SupportType]: string } = dynamicI18nRecord({
+/**
+ * 搜索类型选项。
+ *
+ * 影人(celebrity)故意不在这里: 搜索接口的影视类目(cat=1002)把影人和作品混在一起,
+ * 插件没有按人过滤的入口, 放进来只会多出一个点了会报错的选项。影人只通过同步接入。
+ */
+export const SearchTypeRecords: { [key in SupportType | string]: string } = dynamicI18nRecord({
 	[SupportType.all]: 'ALL',
 	[SupportType.movie]: 'MOVIE_AND_TELEPLAY',
 	[SupportType.book]: 'BOOK',
@@ -211,7 +228,7 @@ export const SearchTypeRecords: { [key in SupportType]: string } = dynamicI18nRe
 	[SupportType.note]: 'NOTE',
 	[SupportType.game]: 'GAME',
 	[SupportType.theater]: 'THEATER',
-}) as { [key in SupportType]: string };
+}) as { [key in SupportType | string]: string };
 
 /**
  * 名称模式选项
@@ -229,7 +246,8 @@ export enum SyncType {
 	broadcast = 'broadcast',
 	note = 'note',
 	music = 'music',
-	teleplay = 'teleplay'
+	teleplay = 'teleplay',
+	celebrity = 'celebrity'
 }
 
 export const SyncTypeUrlDomain: Map<SyncType, string> = new Map([
@@ -240,6 +258,7 @@ export const SyncTypeUrlDomain: Map<SyncType, string> = new Map([
 	[SyncType.music , 'music'],
 	[SyncType.teleplay , 'movie'],
 	[SyncType.game, 'games'],
+	[SyncType.celebrity, 'movie'],
 	]
 )
 
@@ -255,6 +274,7 @@ export const SyncTypeRecords: { [key in SyncType | string]: string } = dynamicI1
 	// [SyncType.note]: i18nHelper.getMessage('504105'),
 	[SyncType.music]: '504106',
 	[SyncType.game]: '504108',
+	[SyncType.celebrity]: '504109',
 });
 
 /**

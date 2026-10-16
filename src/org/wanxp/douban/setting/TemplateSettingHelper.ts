@@ -27,6 +27,7 @@ export function constructTemplateUI(containerEl: HTMLElement, manager: SettingsM
 	new Setting(templateList).setClass('obsidian_douban_section_card').then(createFileSelectionSetting({containerEl: templateList, name: '121301', desc: '121302', placeholder: '121701', key: 'gameTemplateFile', manager: manager}));
 	new Setting(templateList).setClass('obsidian_douban_section_card').then(createFileSelectionSetting({containerEl: templateList, name: '121801', desc: '121802', placeholder: '121701', key: 'teleplayTemplateFile', manager: manager}));
 	new Setting(templateList).setClass('obsidian_douban_section_card').then(createFileSelectionSetting({containerEl: templateList, name: 'theaterTemplateName', desc: 'theaterTemplateDesc', placeholder: '121701', key: 'theaterTemplateFile', manager: manager}));
+	new Setting(templateList).setClass('obsidian_douban_section_card').then(createFileSelectionSetting({containerEl: templateList, name: '121904', desc: '121906', placeholder: '121701', key: 'celebrityTemplateFile', manager: manager}));
 }
 
 export function createFileSelectionSetting({containerEl, name, desc, placeholder, key, manager

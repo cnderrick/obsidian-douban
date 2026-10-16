@@ -16,6 +16,7 @@ export interface DoubanPluginSetting {
 	gameTemplateFile: string,
 	teleplayTemplateFile: string,
 	theaterTemplateFile: string,
+	celebrityTemplateFile: string,
 	dateFormat: string,
 	timeFormat: string,
 	searchUrl: string,

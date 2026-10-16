@@ -11,7 +11,7 @@ describe("default template image paths", () => {
 		const templateContents = Object.values(templates);
 		const templatesWithImages = templateContents.filter((template) => template.includes("{{image}}"));
 
-		expect(templatesWithImages).toHaveLength(6);
+		expect(templatesWithImages).toHaveLength(7);
 		for (const template of templatesWithImages) {
 			expect(template).toContain("![image](<{{image}}>)");
 			expect(template).not.toContain("![image]({{image}})");

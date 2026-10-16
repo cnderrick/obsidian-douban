@@ -1,5 +1,31 @@
 import {TemplateKey} from "./Constsant";
 
+/**
+ * 影人模板。
+ *
+ * 影人没有「我的评分/我的状态/我的评论」这些登录信息, 所以带状态与不带状态用的是同一份。
+ */
+const celebrityTemplateContent = `---
+doubanId: {{id}}
+personageId: {{personageId}}
+title: {{title}}
+type: {{type}}
+gender: {{gender}}
+birthday: {{birthday}}
+birthplace: {{birthplace}}
+profession: {{profession}}
+aliases: {{aliases}}
+IMDb: {{IMDb}}
+tags: 
+  - {{type}}
+url: {{url}}
+createTime: {{currentDate}} {{currentTime}}
+desc: {{desc}}
+---
+
+![image](<{{image}}>)
+`;
+
 export const DEFAULT_TEMPLATE_CONTENT = {
 	movieTemplateFileContent: `---
 doubanId: {{id}}
@@ -166,6 +192,7 @@ desc: {{desc}}
 
 ![image](<{{image}}>)
 `,
+	celebrityTemplateFileContent: celebrityTemplateContent,
 }
 
 export const DEFAULT_TEMPLATE_CONTENT_WITH_STATE = {
@@ -378,6 +405,7 @@ Comment:
 ---
 {{myComment}}
 `,
+	celebrityTemplateFileContent: celebrityTemplateContent,
 }
 
 /**

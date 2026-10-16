@@ -244,6 +244,9 @@ PS: This file could be delete if you want to.
 	'121801': `Teleplay`,
 	'121802': `This template will be used when creating new notes for Teleplay from Obsidian-Douban.`,
 
+	'121904': `Celebrity`,
+	'121906': `This template will be used when creating new notes for Celebrity from Obsidian-Douban.`,
+
 	'120501': `Date Format`,
 	'120502': `Time Format`,
 	'120503': `This format will be used when available template variables contain date.`,
@@ -681,6 +684,7 @@ PS: This file could be delete if you want to.
 	'504105': `My Note`,
 	'504106': `My Music`,
 	'504108': `My Game`,
+	'504109': `My Celebrity`,
 
 	'500002': `Sync Status`,
 
@@ -697,6 +701,7 @@ PS: This file could be delete if you want to.
 	'GAME': `game`,
 	'TELEPLAY': `teleplay`,
 	'THEATER': `theater`,
+	'CELEBRITY': `celebrity`,
 
 	'MOVIE_AND_TELEPLAY': `movie&tv`,
 
@@ -708,6 +713,7 @@ PS: This file could be delete if you want to.
 	'game': `game`,
 	'teleplay': `teleplay`,
 	'theater': `theater`,
+	'celebrity': `celebrity`,
 
 	'movie_and_teleplay': `movie&tv`,
 
