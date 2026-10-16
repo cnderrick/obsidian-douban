@@ -6,9 +6,12 @@ jest.mock("obsidian", () => ({
 		const parsed = /^(\d{4})年(\d{1,2})月(?:(\d{1,2})日)?$/.exec(text)
 			|| /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text);
 		return {
-			format: () => text,
-			isValid: () => parsed != null,
-			toDate: () => parsed
+			// 与真实 moment(value).format('yyyy-MM-DD') 对齐, 便于断言渲染结果
+			format: (): string => value instanceof Date
+				? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
+				: text,
+			isValid: (): boolean => parsed != null,
+			toDate: (): Date => parsed
 				? new Date(Number(parsed[1]), Number(parsed[2]) - 1, Number(parsed[3] || 1))
 				: null,
 		};
@@ -23,8 +26,17 @@ jest.mock("../src/org/wanxp/utils/DoubanHttpUtil", () => ({
 
 import {load} from "cheerio";
 import DoubanCelebrityLoadHandler from "../src/org/wanxp/douban/data/handler/DoubanCelebrityLoadHandler";
-import {SupportType} from "../src/org/wanxp/constant/Constsant";
+import {DoubanSearchChooseItemHandler} from "../src/org/wanxp/douban/data/handler/DoubanSearchChooseItemHandler";
+import {SearchHandleMode, SupportType} from "../src/org/wanxp/constant/Constsant";
 import {DoubanHttpUtil} from "../src/org/wanxp/utils/DoubanHttpUtil";
+
+// 派发链上的处理器用 String.prototype.contains 判类型(Obsidian 运行时提供该兼容方法),
+// jest 的 Node 环境没有, 这里补上以免测出与线上无关的失败。
+if (typeof (String.prototype as any).contains !== 'function') {
+	(String.prototype as any).contains = function (search: string, position?: number): boolean {
+		return this.indexOf(search, position) !== -1;
+	};
+}
 
 const PERSONAGE_ID = "27483938";
 const CELEBRITY_ID = "1325168";
@@ -167,6 +179,64 @@ describe("DoubanCelebrityLoadHandler", () => {
 	it("does not take part in the sync type guard", () => {
 		// 人物页会列出该影人的作品, 用整页关键词判类型有误杀风险
 		expect((handler as any).getGuessType(load(personageHtml()))).toBeNull();
+	});
+
+	/**
+	 * 只测 parseSubjectFromHtml 是不够的: 渲染阶段还要靠 getTemplateKey() 找到模板,
+	 * 一旦那里没有该类型的分支, 模板就是 undefined, parse() 会在 template.indexOf 上抛错,
+	 * 而错误会被 putToObsidian 记成 fail —— 表现为「解析成功但一条都建不出来」。
+	 */
+	it("renders the celebrity template end to end", async () => {
+		const subject = parse(personageHtml(), CELEBRITY_ID);
+		const settingsManager = {
+			getSetting: (): undefined => undefined,
+			getArraySetting: () => ({arrayStart: '', arrayElementStart: '- ', arraySpiltV2: '', arrayElementEnd: '', arrayEnd: ''}),
+		};
+		// 变量替换走的是 doubanPlugin.settingsManager, 不是 context 里的那个
+		const renderHandler = new DoubanCelebrityLoadHandler({settingsManager} as any);
+		const renderContext = {
+			mode: SearchHandleMode.FOR_CREATE,
+			settings: {dateFormat: 'yyyy-MM-DD'},
+			userComponent: {isLogin: () => false},
+			plugin: {settingsManager},
+		};
+
+		const result = await renderHandler.parse(subject, renderContext as any);
+
+		expect(result.content).toContain("title: 毛林林 Linlin Mao");
+		expect(result.content).toContain("type: celebrity");
+		expect(result.content).toContain("personageId: 27483938");
+		expect(result.content).toContain("profession: 演员");
+		// 出生日期是 Date 字段, 必须渲染成格式化后的字符串
+		expect(result.content).toContain("birthday: 1986-10-08");
+		expect(result.fileName).toBe("/celebrity/毛林林 Linlin Mao");
+	});
+
+	/**
+	 * 渲染并不总是走本处理器: 同步/导入时 putToObsidian 会把条目交给
+	 * DoubanSearchChooseItemHandler.parseText 派发, 那里按 support() 选处理器,
+	 * 选不中就用兜底的 DoubanOtherLoadHandler(它的 supportType 是 all, 模板 key 是 null)。
+	 * 所以新类型必须同时注册进那个派发表, 否则表现为「解析成功但一条都建不出来」。
+	 */
+	describe("dispatch through the shared handler list", () => {
+		it("renders a celebrity subject through DoubanSearchChooseItemHandler", async () => {
+			const settingsManager = {
+				getSetting: (): undefined => undefined,
+				getArraySetting: () => ({arrayStart: '', arrayElementStart: '- ', arraySpiltV2: '', arrayElementEnd: '', arrayEnd: ''}),
+			};
+			const dispatcher = new DoubanSearchChooseItemHandler({} as any, {settingsManager} as any);
+			const subject = parse(personageHtml(), CELEBRITY_ID);
+
+			const result = await dispatcher.parseText(subject, {
+				mode: SearchHandleMode.FOR_CREATE,
+				settings: {dateFormat: 'yyyy-MM-dd'},
+				userComponent: {isLogin: () => false},
+				plugin: {settingsManager},
+			} as any);
+
+			expect(result.content).toContain("type: celebrity");
+			expect(result.content).toContain("title: 毛林林 Linlin Mao");
+		});
 	});
 
 	describe("resolving the personage page", () => {

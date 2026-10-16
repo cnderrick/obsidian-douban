@@ -373,7 +373,13 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 					NumberUtil.getRateStar(value, 10, {scoreSetting: context.settings.scoreSetting})
 				));
 			}
-			variableMap.set(key, new DataField(key, type, value, value));
+			// DataField 的 value 会被直接写进 yml/frontmatter, 而 YamlUtil.handleText 只接受字符串
+			// (Date 的字符串形式含 ':', 会走进 replaceAll 分支直接抛错), 所以日期字段要给出
+			// 格式化后的字符串, 与下面 datePublished 的处理保持一致。
+			const rendered = type == DataValueType.date && value instanceof Date
+				? moment(value).format(context.settings.dateFormat)
+				: value;
+			variableMap.set(key, new DataField(key, type, value, rendered));
 		}
 		variableMap.set(DoubanParameterName.IMAGE_URL, new DataField(
 			DoubanParameterName.IMAGE_URL,
@@ -516,6 +522,9 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 				break;
 			case SupportType.theater:
 				templateKey = TemplateKey.theaterTemplateFile;
+				break;
+			case SupportType.celebrity:
+				templateKey = TemplateKey.celebrityTemplateFile;
 				break;
 			default:
 				templateKey = null;
