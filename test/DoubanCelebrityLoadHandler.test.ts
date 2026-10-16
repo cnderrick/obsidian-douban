@@ -209,7 +209,8 @@ describe("DoubanCelebrityLoadHandler", () => {
 		expect(result.content).toContain("profession: 演员");
 		// 出生日期是 Date 字段, 必须渲染成格式化后的字符串
 		expect(result.content).toContain("birthday: 1986-10-08");
-		expect(result.fileName).toBe("/celebrity/毛林林 Linlin Mao");
+		// 默认笔记路径的末段带 id: 同名但不同条目的作品才不会互相顶掉
+		expect(result.fileName).toBe(`/celebrity/毛林林 Linlin Mao ${CELEBRITY_ID}`);
 	});
 
 	/**

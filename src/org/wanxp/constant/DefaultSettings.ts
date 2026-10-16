@@ -36,7 +36,9 @@ export const DEFAULT_SETTINGS: DoubanPluginSetting = {
 	arrayEnd: "",
 	personNameMode: PersonNameMode.CH_NAME,
 	dataFilePath: "",
-	dataFileNamePath: "/{{type}}/{{title}}",
+	// 文件名末段带上豆瓣 id: 同名但不同条目的作品(如同一本书的不同版本、同名电影的两个版本)
+	// 会落在同一个文件名上, 后一条被静默跳过 —— 带上 id 才能各自落盘
+	dataFileNamePath: "/{{type}}/{{title}} {{id}}",
 	statusBar: true,
 	debugMode: false,
 	customProperties: [

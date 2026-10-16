@@ -148,8 +148,8 @@ export default class SyncHandler {
 				details+= `${value.id}-  ${value.title}  :  ${i18nHelper.getMessage(value.status)}
 `;
 			}else {
-				// @ts-ignore
-				details+= `${value.id}-[[${FileUtil.replaceSpecialCharactersForFileName(value.title)}]]:  ${i18nHelper.getMessage(value.status)}
+				// 链接要跟实际文件名一致(文件名末段带 id), 否则报告里的链接指不到文件
+				details+= `${value.id}-[[${FileUtil.replaceSpecialCharactersForFileName(value.title)} ${value.id}]]:  ${i18nHelper.getMessage(value.status)}
 `;
 			}
 
