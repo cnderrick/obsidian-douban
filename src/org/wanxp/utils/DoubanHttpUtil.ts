@@ -49,6 +49,30 @@ export class DoubanHttpUtil {
 		return await this.humanCheck(html, url, settingsManager)
 	}
 
+	/**
+	 * 取回页面源码, 但**不处理豆瓣的安全验证**。
+	 *
+	 * 用于只需要页面里某个字段的场景: 影人详情页(movie.douban.com/celebrity/{id}/)现在会
+	 * 302 到 sec.douban.com 的验证页, 而验证页表单里的 red 字段就带着真正的目标地址。
+	 * 走 httpRequestGet 会自动去解验证, 但这条路径提交后仍然返回验证页(实测), 于是请求必然抛错。
+	 */
+	public static async httpRequestGetRaw(url: string, headers: any, settingsManager?: SettingsManager): Promise<string> {
+		settingsManager?.debug(`请求地址(原始通道):${url}`);
+		const response = await HttpUtil.getText(url, headers, settingsManager);
+		if (response.status == 403) {
+			throw new Error(i18nHelper.getMessage('130106'));
+		}
+		const html = response.textString;
+		const problem = DoubanPageGuard.detect(html);
+		if (problem === DoubanPageProblem.accessDenied) {
+			throw new Error(i18nHelper.getMessage('130105'));
+		}
+		if (problem === DoubanPageProblem.loginRequired) {
+			throw new Error(i18nHelper.getMessage('130112'));
+		}
+		return html;
+	}
+
 	private static buildChallengeHeaders(headers: Record<string, any> = {}): Record<string, string> {
 		const result: Record<string, string> = {};
 		Object.entries(headers).forEach(([key, value]) => {

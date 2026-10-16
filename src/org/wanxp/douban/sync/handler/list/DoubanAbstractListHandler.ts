@@ -46,6 +46,13 @@ export default abstract class DoubanAbstractListHandler
 
 	async delay(ms: number) {}
 
+	/**
+	 * 默认每页 30 条; 每页条数不同的列表(如影人 15 条)覆盖它。
+	 */
+	getPageSize(): number {
+		return PAGE_SIZE;
+	}
+
 	protected getUrl(context: HandleContext, start: number) {
 		return doubanSubjectSyncListUrl(
 			this.getSyncTypeDomain(),
@@ -116,10 +123,11 @@ export default abstract class DoubanAbstractListHandler
 		const subjectNumText = dataHtml(".subject-num").text().trim();
 		const totalNumMatch = subjectNumText.match(/\/\s*(\d+)/);
 		const totalNum = totalNumMatch ? parseInt(totalNumMatch[1], 10) : 0;
+		const pageSize = this.getPageSize();
 		return new SearchPage(
 			totalNum,
-			Math.floor(context.syncOffset / PAGE_SIZE) + 1,
-			PAGE_SIZE,
+			Math.floor(context.syncOffset / pageSize) + 1,
+			pageSize,
 			null,
 			items,
 		);

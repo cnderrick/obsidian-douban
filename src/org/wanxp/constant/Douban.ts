@@ -14,3 +14,13 @@ export const doubanSubjectSyncListUrl = function(subjectType:string, userId:stri
 export const doubanGameSubjectSyncListUrl = function(subjectType:string, userId:string, doType:string, start:number):string {
 	return `https://douban.com/people/${userId}/games?start=${start}&sort=time&rating=all&filter=all&mode=list${doType != 'all' ? '&action='+doType : ''}`;
 }
+
+/**
+ * 我收藏的影人列表。
+ *
+ * 这条列表既不接受 sort/rating/filter/mode 这些参数, 也没有想看/看过之分,
+ * 只有 start 分页, 所以单独写一个地址(每页 15 条)。
+ */
+export const doubanCelebritySyncListUrl = function(userId:string, start:number):string {
+	return `https://movie.douban.com/people/${userId}/celebrities?start=${start}`;
+}

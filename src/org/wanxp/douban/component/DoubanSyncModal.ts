@@ -17,7 +17,8 @@ import {
 import {
 	ALL, DoubanSubjectState, DoubanSubjectStateRecords,
 	DoubanSubjectStateRecords_BOOK_SYNC,
-	DoubanSubjectStateRecords_BROADCAST_SYNC, DoubanSubjectStateRecords_GAME_SYNC,
+	DoubanSubjectStateRecords_BROADCAST_SYNC, DoubanSubjectStateRecords_CELEBRITY_SYNC,
+	DoubanSubjectStateRecords_GAME_SYNC,
 	DoubanSubjectStateRecords_MOVIE_SYNC,
 	DoubanSubjectStateRecords_MUSIC_SYNC,
 	DoubanSubjectStateRecords_NOTE_SYNC,
@@ -195,8 +196,10 @@ ${syncStatus.getHasHandle() == 0? '...' : i18nHelper.getMessage('110042') + ':' 
 
 	private showConfigPan(contentEl: HTMLElement, config:SyncConfig, disable:boolean) {
 		new Setting(contentEl);
-		this.showTypeDropdown(contentEl, config, disable);
-		this.showCondition(contentEl, config, disable);
+		//类型切换会改变同步条件的可用项(影人没有收藏时间), 所以条件区要跟着重建
+		const conditionContainer = contentEl.createDiv("sync-douban-condition");
+		this.showTypeDropdown(contentEl, config, disable, conditionContainer);
+		showConditionItem(conditionContainer, this.plugin.settingsManager, config, disable);
 		// this.showOutputFolderSelections(contentEl, config, disable);
 		// this.showOutiFleName(contentEl, config, disable);
 		// this.showAttachmentsFileConfig(contentEl, config, disable);
@@ -236,10 +239,15 @@ ${syncStatus.getHasHandle() == 0? '...' : i18nHelper.getMessage('110042') + ':' 
 				config.scope = DoubanSubjectState.collect;
 				this.showScopeDropdown(contentEl, DoubanSubjectStateRecords_GAME_SYNC, config, disable);
 				break;
+			case SyncType.celebrity:
+				//影人收藏只有一个列表, 没有想看/看过, scope 固定为「所有」
+				config.scope = ALL;
+				this.showScopeDropdown(contentEl, DoubanSubjectStateRecords_CELEBRITY_SYNC, config, disable);
+				break;
 		}
 	}
 
-	private showTypeDropdown(containerEl:HTMLElement, config: SyncConfig, disable:boolean) {
+	private showTypeDropdown(containerEl:HTMLElement, config: SyncConfig, disable:boolean, conditionContainer: HTMLElement) {
 		const settings = new Setting(containerEl);
 		const scopeSelections = containerEl.createDiv("scope-selection");
 		// const templateFile:HTMLDivElement = containerEl.createDiv('template-file-path-selection');
@@ -252,6 +260,7 @@ ${syncStatus.getHasHandle() == 0? '...' : i18nHelper.getMessage('110042') + ':' 
 						config.syncType = value;
 						config.templateFile = this.getDefaultTemplatePath(value);
 						this.openScopeDropdown(scopeSelections, config, disable);
+						showConditionItem(conditionContainer, this.plugin.settingsManager, config, disable);
 						// this.showTemplateFileSelectionSetting(templateFile, config, disable);
 					});
 			}).setDisabled(disable);
@@ -277,6 +286,9 @@ ${syncStatus.getHasHandle() == 0? '...' : i18nHelper.getMessage('110042') + ':' 
 				break;
 			case SyncType.game:
 				result = (settings.gameTemplateFile == '' || settings.gameTemplateFile == null) ? DEFAULT_SETTINGS.gameTemplateFile : settings.gameTemplateFile
+				break;
+			case SyncType.celebrity:
+				result = (settings.celebrityTemplateFile == '' || settings.celebrityTemplateFile == null) ? DEFAULT_SETTINGS.celebrityTemplateFile : settings.celebrityTemplateFile
 				break;
 		}
 		return result;
@@ -467,24 +479,36 @@ ${syncStatus.getHasHandle() == 0? '...' : i18nHelper.getMessage('110042') + ':' 
 			})
 			.setDisabled(disable);
 	}
-
-	private showCondition(contentEl: HTMLElement, config: SyncConfig, disable: boolean) {
-		showConditionItem(contentEl.createDiv("sync-douban-condition"), this.plugin.settingsManager, config, disable);
-	}
 }
-
 function showConditionItem(containerEl: HTMLElement, manager: SettingsManager, config: SyncConfig, disable: boolean) {
 	containerEl.empty();
 	const condition = new Setting(containerEl).setName(i18nHelper.getMessage('110070'))
 
 	const conditionDesc = condition.descEl.createDiv('sync-douban-condition-desc');
-	new DropdownComponent(conditionDesc).addOptions(SyncConditionTypeRecords)
+	//影人列表页没有收藏时间, 「自定义时间」对它没有意义; 若之前选的是它, 这里退回「全部」
+	if (config.syncType == SyncType.celebrity && config.syncConditionType == SyncConditionType.CUSTOM_TIME) {
+		config.syncConditionType = SyncConditionType.ALL;
+	}
+	new DropdownComponent(conditionDesc).addOptions(getSyncConditionOptions(config))
 		.setValue(config.syncConditionType)
 		.onChange((value) => {
 			config.syncConditionType = value;
 			showConditionItem(containerEl, manager, config, disable);
 		}).setDisabled(disable);
 	showConditionItemInput(conditionDesc, config, disable);
+}
+
+/**
+ * 同步条件选项。影人列表没有收藏时间, 因此对它去掉「自定义时间」。
+ */
+function getSyncConditionOptions(config: SyncConfig): Record<string, string> {
+	if (config.syncType != SyncType.celebrity) {
+		return SyncConditionTypeRecords;
+	}
+	return Object.fromEntries(
+		Object.entries(SyncConditionTypeRecords)
+			.filter(([key]) => key != SyncConditionType.CUSTOM_TIME)
+	);
 }
 
 function showConditionItemInput(containerEl: HTMLElement, config: SyncConfig, disable: boolean) {

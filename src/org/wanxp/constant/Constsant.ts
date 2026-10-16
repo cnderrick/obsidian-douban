@@ -283,6 +283,12 @@ export const SyncTypeRecords: { [key in SyncType | string]: string } = dynamicI1
 export const PAGE_SIZE: number = 30;
 
 /**
+ * 我收藏的影人列表每页 15 条(其余同步列表都是 30 条)。
+ * 分页偏移与页号换算必须用它, 否则从第 2 页起就会错位。
+ */
+export const CELEBRITY_PAGE_SIZE: number = 15;
+
+/**
  * 动作
  */
 export enum Action {

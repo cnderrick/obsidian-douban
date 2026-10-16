@@ -116,13 +116,23 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 
 	abstract support(extract: DoubanSubject): boolean;
 
+	/**
+	 * 取详情页的 HTML。
+	 *
+	 * 默认直接请求 getSubjectUrl(id); 需要先过一次「跳板」的类型(影人)覆盖它。
+	 * 抛出的错误由 handle 统一记为失败, 下次同步会重试。
+	 */
+	protected async fetchSubjectHtml(id: string, url: string, context: HandleContext): Promise<string> {
+		return DoubanHttpUtil.httpRequestGet(url, context.plugin.settingsManager.getHeaders(), context.plugin.settingsManager);
+	}
+
 	async handle(id: string, context: HandleContext): Promise<T> {
 		const url:string = this.getSubjectUrl(id);
 		if (context.plugin.settingsManager.isDebug()) {
 			context.plugin.settingsManager.debug(`开始请求地址:${url}`)
 			context.plugin.settingsManager.debug(`(注意:请勿向任何人透露你的Cookie,此处若需要截图请**打码**)请求header:${context.settings.loginHeadersContent}`)
 		}
-		return await DoubanHttpUtil.httpRequestGet(url, context.plugin.settingsManager.getHeaders(), context.plugin.settingsManager)
+		return await this.fetchSubjectHtml(id, url, context)
 			.then(load)
 			.then(data => this.analysisUserState(data, context))
 			.then(({data, userState}) => {
@@ -130,7 +140,7 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 				if (context.syncActive) {
 					guessType = this.getGuessType(data);
 				}
-				const sub = this.parseSubjectFromHtml(data, context);
+				const sub = this.parseSubjectFromHtml(data, context, id);
 				if (!sub || !String(sub.id || '').trim() || !String(sub.title || '').trim()) {
 					throw new Error(i18nHelper.getMessage('130113'));
 				}
@@ -156,10 +166,14 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 
 	/**
 	 * 通过判断 data中是否包含关键字符串 “我看过的电视剧” 判断是不是 movie
+	 *
+	 * 同步时用它给条目定类型, 与解析出的 type 不一致就跳过(见 putToObsidian)。
+	 * 详情页里没有任何状态文案的类型要覆盖它返回 null —— 守卫的判据是
+	 * `guessType && ...`, 返回 null 即等于「该类型不参与守卫」。
 	 * @param data
-	 * @private
+	 * @protected
 	 */
-	private getGuessType(data: CheerioAPI):SupportType {
+	protected getGuessType(data: CheerioAPI):SupportType {
 		if (data) {
 			const text = data.html();
 			if (text) {
@@ -174,7 +188,16 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 	}
 
 
-	abstract parseSubjectFromHtml(data: CheerioAPI, context: HandleContext): T | undefined;
+	/**
+	 * 从详情页解析条目。
+	 *
+	 * @param data 详情页
+	 * @param context 处理上下文
+	 * @param requestedId 调用方请求时使用的条目 id。
+	 *        多数类型的详情页自己能给出 id; 影人不行 —— 列表给的是 celebrity id,
+	 *        内容页却是 personage id, 而增量记账用的必须是列表里的那个 id。
+	 */
+	abstract parseSubjectFromHtml(data: CheerioAPI, context: HandleContext, requestedId?: string): T | undefined;
 
 	async toEditor(context: HandleContext, extract: T): Promise<T> {
 		await this.doubanPlugin.putToObsidian(context, extract);

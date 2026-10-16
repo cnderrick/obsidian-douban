@@ -11,6 +11,7 @@ import {i18nHelper} from "../../../lang/helper";
 import {DoubanTeleplaySyncHandler} from "./DoubanTeleplaySyncHandler";
 import {SyncConditionType} from "../../../constant/Constsant";
 import {DoubanGameSyncHandler} from "./DoubanGameSyncHandler";
+import {DoubanCelebritySyncHandler} from "./DoubanCelebritySyncHandler";
 import {DataField} from "../../../utils/model/DataField";
 import {VariableUtil} from "../../../utils/VariableUtil";
 import {FileUtil} from "../../../utils/FileUtil";
@@ -39,6 +40,7 @@ export default class SyncHandler {
 				 new DoubanMusicSyncHandler(plugin),
 				 new DoubanTeleplaySyncHandler(plugin),
 				 new DoubanGameSyncHandler(plugin),
+				 new DoubanCelebritySyncHandler(plugin),
 				 this.defaultSyncHandler
 			 ];
 	 }

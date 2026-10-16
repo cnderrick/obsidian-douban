@@ -133,6 +133,19 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 	}
 
 	/**
+	 * 当前状态的每页条数。
+	 *
+	 * 豆瓣各列表每页条数不同(影视/书籍等 30 条, 影人 15 条), 页号换偏移、
+	 * 算最后一页、按条数切页都必须用该列表自己的值, 否则第 2 页起就会错位。
+	 */
+	private currentPageSize(): number {
+		const state = this.syncStates[this.stateIndex];
+		return state && state.handler && state.handler.getPageSize
+			? state.handler.getPageSize()
+			: PAGE_SIZE;
+	}
+
+	/**
 	 * 等待时间: 条目与翻页共用一组值, 恒为 1-2 秒, 不按同步规模降速。
 	 */
 	private delayRange(): {min: number, max: number} {
@@ -206,7 +219,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		if (!firstPage) {
 			return;
 		}
-		const lastPage: number = Math.max(1, Math.ceil(firstPage.total / PAGE_SIZE));
+		const lastPage: number = Math.max(1, Math.ceil(firstPage.total / this.currentPageSize()));
 		const cacheList = new Map<number, SearchPageTypeOf<SubjectListItem>>();
 		cacheList.set(firstPage.pageNum, firstPage);
 		/**
@@ -330,7 +343,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		}
 		const offset: number = pageNum == null
 			? (context.syncOffset == null ? 0 : context.syncOffset)
-			: Math.max(0, (pageNum - 1) * PAGE_SIZE);
+			: Math.max(0, (pageNum - 1) * this.currentPageSize());
 		if (offset == 0 && state.firstPage) {
 			// 第 1 页在准备阶段已经取回, 直接复用, 不重复请求
 			const firstPage = state.firstPage;
@@ -413,7 +426,8 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 
 	private async syncByCountLimit(syncConfig: SyncConfig, context: HandleContext) {
 		const {syncConditionCountFromValue, syncConditionCountToValue} = syncConfig;
-		const startOffset = Math.floor((syncConditionCountFromValue - 1)/ PAGE_SIZE) * PAGE_SIZE;
+		const pageSize: number = this.currentPageSize();
+		const startOffset = Math.floor((syncConditionCountFromValue - 1)/ pageSize) * pageSize;
 		context.syncOffset = startOffset;
 		//结束点是第几条
 		let endOffsetNumberForCustom = 0;
@@ -445,9 +459,9 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 			let subjectListItems = [];
 
 			//在开始和结束同一页
-			if (Math.floor((syncConditionCountFromValue - 1) / PAGE_SIZE) == Math.floor((endOffsetNumberForCustom - 1) / PAGE_SIZE)) {
-				const startIndex = Math.floor((syncConditionCountFromValue - 1) % PAGE_SIZE);
-				const endIndex =  Math.floor((endOffsetNumberForCustom - 1) % PAGE_SIZE);
+			if (Math.floor((syncConditionCountFromValue - 1) / pageSize) == Math.floor((endOffsetNumberForCustom - 1) / pageSize)) {
+				const startIndex = Math.floor((syncConditionCountFromValue - 1) % pageSize);
+				const endIndex =  Math.floor((endOffsetNumberForCustom - 1) % pageSize);
 				subjectListItems = await this.removeExists(
 					list.slice(startIndex, endIndex + 1),
 					syncConfig,
@@ -456,7 +470,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 				handleCount += (endIndex - startIndex + 1);
 			//第一页
 			} else if (isFirstStep) {
-				const startIndex = (syncConditionCountFromValue - 1) % PAGE_SIZE;
+				const startIndex = (syncConditionCountFromValue - 1) % pageSize;
 				handleCount += (list.length - startIndex);
 				subjectListItems = await this.removeExists(
 					list.slice(startIndex),
@@ -466,7 +480,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 				isFirstStep = false;
 			}
 			//最后一页
-			else if (needHandleTotalCustomItem - handleCount <= PAGE_SIZE) {
+			else if (needHandleTotalCustomItem - handleCount <= pageSize) {
 				const endIndex = needHandleTotalCustomItem - handleCount;
 				subjectListItems = await this.removeExists(
 					list.slice(0, endIndex),
@@ -481,7 +495,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 					syncConfig,
 					context,
 				);
-				handleCount += PAGE_SIZE;
+				handleCount += pageSize;
 			}
 
 
@@ -495,7 +509,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 			//处理
 			await this.handleItems(subjectListItems, context);
 
-			context.syncOffset = context.syncOffset + PAGE_SIZE;
+			context.syncOffset = context.syncOffset + pageSize;
 			const delay = this.delayRange();
 			await sleepRange(delay.min, delay.max);
 		} while (handleCount < needHandleTotalCustomItem);
@@ -504,6 +518,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 	private async syncAll(syncConfig: SyncConfig, context: HandleContext) {
 		//最多100000条
 		context.syncOffset = 0;
+		const pageSize: number = this.currentPageSize();
 		let handleCount = 0;
 		let totalForHandle = 0;
 		let isFirstStep = true;
@@ -537,7 +552,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 				continue;
 			}
 			await this.handleItems(subjectListItems, context);
-			context.syncOffset = context.syncOffset + PAGE_SIZE;
+			context.syncOffset = context.syncOffset + pageSize;
 			const delay = this.delayRange();
 			await sleepRange(delay.min, delay.max);
 		} while (handleCount <= totalForHandle);

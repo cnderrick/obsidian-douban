@@ -55,10 +55,11 @@ export abstract class DoubanGameListHandler extends DoubanAbstractListHandler {
 			// 取不到 id 的条目直接丢弃, 避免 null 条目在后续处理中被当成正常条目
 			.filter((item): item is SubjectListItem => item != null);
 		const total = this.getTotal(dataHtml, context);
+		const pageSize = this.getPageSize();
 		return new SearchPage(
 			total,
-			Math.floor(context.syncOffset / PAGE_SIZE) + 1,
-			PAGE_SIZE,
+			Math.floor(context.syncOffset / pageSize) + 1,
+			pageSize,
 			null,
 			items,
 		);
