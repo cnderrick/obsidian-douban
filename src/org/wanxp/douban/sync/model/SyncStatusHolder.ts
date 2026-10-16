@@ -1,7 +1,6 @@
 import {SyncConfig} from "./SyncConfig";
 import {SyncItemResult} from "./SyncItemResult";
 import {
-	BasicConst,
 	SupportType,
 	SyncConditionTypeRecords,
 	SyncItemStatus,
@@ -151,14 +150,6 @@ export default class SyncStatusHolder {
 		 const path:string = syncConfig.dataFilePath ? syncConfig.dataFilePath : '';
 		 return `${path}+${type}+${scope}`;
 	 }
-
-	/**
-	 * 是否属于需要放慢速率的量级: 按整轮同步的总数判断, 而不是按剩余数,
-	 * 否则同一轮同步跑着跑着就会从慢速切回快速, 预估时间也跟着跳。
-	 */
-	getOverSize():boolean {
-		return this.getTotal() > BasicConst.SLOW_SIZE;
-	}
 
 	public initSyncHandledData(data:SyncHandledData[]) {
 		this.handledData = new Map<string, Set<string>>();

@@ -22,3 +22,6 @@ data.json
 .DS_Store
 doc/.vitepress/dist
 doc/.vitepress/cache
+
+# 本地打包产物
+dist

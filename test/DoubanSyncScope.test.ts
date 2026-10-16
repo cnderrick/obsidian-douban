@@ -179,15 +179,15 @@ describe("sync scope", () => {
 		expect((handler as any).computeRunTotal({syncConditionType: "all"} as any)).toBe(100);
 	});
 
-	it("uses the slow pace once the run is large", async () => {
-		const {context, syncStatus} = makeContext();
+	it("keeps the wait constant regardless of the run size", async () => {
+		const {syncStatus} = makeContext();
 		const handler = new TestSyncHandler(movieListHandlers(), makeLoader().loader);
 
 		syncStatus.totalNum(95);
-		expect((handler as any).delayRange(context)).toEqual({min: 4000, max: 8000});
+		expect((handler as any).delayRange()).toEqual({min: 1000, max: 2000});
 
 		syncStatus.totalNum(500);
-		expect((handler as any).delayRange(context)).toEqual({min: 10000, max: 15000});
+		expect((handler as any).delayRange()).toEqual({min: 1000, max: 2000});
 	});
 
 	it("processes one item at a time by default", async () => {

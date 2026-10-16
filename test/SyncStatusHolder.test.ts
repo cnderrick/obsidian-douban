@@ -33,18 +33,4 @@ describe("SyncStatusHolder progress counters", () => {
 		expect(holder.getProgressHandled()).toBe(3);
 		expect(holder.getNotHandled()).toBe(7);
 	});
-
-	it("decides slow mode from the run total instead of what is left", () => {
-		const holder = new SyncStatusHolder(syncConfig());
-		holder.totalNum(300);
-		expect(holder.getOverSize()).toBe(true);
-		holder.handled(250);
-		expect(holder.getOverSize()).toBe(true);
-	});
-
-	it("keeps a small run on the normal pace", () => {
-		const holder = new SyncStatusHolder(syncConfig());
-		holder.totalNum(30);
-		expect(holder.getOverSize()).toBe(false);
-	});
 });

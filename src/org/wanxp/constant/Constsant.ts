@@ -14,26 +14,14 @@ export const BasicConst = {
 	 */
 	CLEAN_STATUS_BAR_DELAY: 5000,
 	/**
-	 * 请求豆瓣周期(多少秒一次)
+	 * 条目与翻页之间的等待下限, 单位毫秒
 	 */
-	CALL_DOUBAN_DELAY: 4000,
+	CALL_DOUBAN_DELAY: 1000,
 	/**
-	 * 请求豆瓣周期(多少秒一次)
+	 * 等待的随机浮动范围, 单位毫秒;
+	 * 实际等待 = [CALL_DOUBAN_DELAY, CALL_DOUBAN_DELAY + CALL_DOUBAN_DELAY_RANGE] = 1-2 秒
 	 */
-	CALL_DOUBAN_DELAY_RANGE: 4000,
-	/**
-	 * 多少条后同步速率变慢，防止403
-	 */
-	SLOW_SIZE: 200,
-
-	/**
-	 * 请求豆瓣周期(多少秒一次) 慢速模式
-	 */
-	CALL_DOUBAN_DELAY_SLOW: 10000,
-	/**
-	 * 请求豆瓣周期(多少秒一次)
-	 */
-	CALL_DOUBAN_DELAY_RANGE_SLOW: 5000,
+	CALL_DOUBAN_DELAY_RANGE: 1000,
 
 }
 
@@ -42,12 +30,6 @@ export const BasicConst = {
  * @private
  */
 export const ESTIMATE_TIME_PER: number = 2000;
-
-/**
- * 预估每次请求+处理时间长度(慢速模式)
- * @private
- */
-export const ESTIMATE_TIME_PER_WITH_REQUEST_SLOW: number = ESTIMATE_TIME_PER + BasicConst.CALL_DOUBAN_DELAY_SLOW + BasicConst.CALL_DOUBAN_DELAY_RANGE_SLOW / 2;
 
 /**
  * 预估每次请求+处理时间长度(正常模式)
@@ -279,11 +261,6 @@ export const SyncTypeRecords: { [key in SyncType | string]: string } = dynamicI1
  * 同步豆瓣每页的大小
  */
 export const PAGE_SIZE: number = 30;
-
-/**
- * 多少条后同步速率变慢，防止403
- */
-
 
 /**
  * 动作

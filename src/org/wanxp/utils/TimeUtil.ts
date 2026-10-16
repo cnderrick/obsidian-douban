@@ -1,5 +1,5 @@
 import NumberUtil from "./NumberUtil";
-import {BasicConst, ESTIMATE_TIME_PER_WITH_REQUEST, ESTIMATE_TIME_PER_WITH_REQUEST_SLOW} from "../constant/Constsant";
+import {ESTIMATE_TIME_PER_WITH_REQUEST} from "../constant/Constsant";
 import {i18nHelper} from "../lang/helper";
 
 export default class TimeUtil {
@@ -7,29 +7,22 @@ export default class TimeUtil {
 
 	/**
 	 * 计算预估需要的时间
+	 *
+	 * 条目之间的等待不再区分同步规模(恒为正常档), 所以按条目数乘单条耗时即可;
+	 * 翻页等待没有计入 —— 它的次数取决于列表页数而不是待处理条目数, 硬算反而更不准。
+	 *
 	 * @param needHandled 需要处理的数量
-	 * @param overSlowSize 是否超过慢速长度的阈值
 	 * @return 需要耗费的毫秒数
 	 */
-	public static estimateTime(needHandled:number, overSlowSize:boolean):number {
+	public static estimateTime(needHandled:number):number {
 		if (needHandled <= 0) {
             return 0;
         }
-		let times = 0;
-		if (overSlowSize) {
-			if (needHandled <= BasicConst.SLOW_SIZE) {
-				times = ESTIMATE_TIME_PER_WITH_REQUEST * needHandled;
-			}else {
-				times = ESTIMATE_TIME_PER_WITH_REQUEST * BasicConst.SLOW_SIZE +  ESTIMATE_TIME_PER_WITH_REQUEST_SLOW * Math.max(needHandled - BasicConst.SLOW_SIZE, 0);
-			}
-		}else {
-			times = ESTIMATE_TIME_PER_WITH_REQUEST * needHandled;
-		}
-		return times;
+		return ESTIMATE_TIME_PER_WITH_REQUEST * needHandled;
 	}
 
-	public static estimateTimeMsg(needHandled:number, overSlowSize:boolean):string {
-		const times:number = this.estimateTime(needHandled, overSlowSize);
+	public static estimateTimeMsg(needHandled:number):string {
+		const times:number = this.estimateTime(needHandled);
 		if (times <= 0) {
             return 0+i18nHelper.getMessage('SECOND');
         }

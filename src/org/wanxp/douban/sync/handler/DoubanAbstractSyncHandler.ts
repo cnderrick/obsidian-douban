@@ -133,17 +133,13 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 	}
 
 	/**
-	 * 条目之间的等待时间。
-	 *
-	 * 整轮同步超过 SLOW_SIZE 条时真正切到慢速档 —— 这组常量以前只出现在预估里,
-	 * 于是界面上的预计时间按慢速算, 实际却一直按 4-8 秒跑。
+	 * 等待时间: 条目与翻页共用一组值, 恒为 1-2 秒, 不按同步规模降速。
 	 */
-	private delayRange(context: HandleContext): {min: number, max: number} {
-		const syncStatus = context.syncStatusHolder && context.syncStatusHolder.syncStatus;
-		const slow: boolean = !!syncStatus && syncStatus.getOverSize();
-		const min: number = slow ? BasicConst.CALL_DOUBAN_DELAY_SLOW : BasicConst.CALL_DOUBAN_DELAY;
-		const max: number = min + (slow ? BasicConst.CALL_DOUBAN_DELAY_RANGE_SLOW : BasicConst.CALL_DOUBAN_DELAY_RANGE);
-		return {min, max};
+	private delayRange(): {min: number, max: number} {
+		return {
+			min: BasicConst.CALL_DOUBAN_DELAY,
+			max: BasicConst.CALL_DOUBAN_DELAY + BasicConst.CALL_DOUBAN_DELAY_RANGE,
+		};
 	}
 
 	/**
@@ -379,7 +375,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 		}
 		const { syncStatus } = context.syncStatusHolder;
 		syncStatus.totalNum(this.runTotal > 0 ? this.runTotal : pending.length);
-		const delay = this.delayRange(context);
+		const delay = this.delayRange();
 		const concurrency: number = Math.max(1, Math.min(
 			Number(context.settings.syncConcurrency) || SYNC_CONCURRENCY_DEFAULT,
 			pending.length,
@@ -490,7 +486,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 
 
 			if (!subjectListItems || subjectListItems.length == 0) {
-				const delay = this.delayRange(context);
+				const delay = this.delayRange();
 				await sleepRange(delay.min, delay.max);
 				continue;
 			}
@@ -500,7 +496,7 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 			await this.handleItems(subjectListItems, context);
 
 			context.syncOffset = context.syncOffset + PAGE_SIZE;
-			const delay = this.delayRange(context);
+			const delay = this.delayRange();
 			await sleepRange(delay.min, delay.max);
 		} while (handleCount < needHandleTotalCustomItem);
 	}
@@ -536,13 +532,13 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 				context,
 			);
 			if (!subjectListItems || subjectListItems.length == 0) {
-				const delay = this.delayRange(context);
+				const delay = this.delayRange();
 				await sleepRange(delay.min, delay.max);
 				continue;
 			}
 			await this.handleItems(subjectListItems, context);
 			context.syncOffset = context.syncOffset + PAGE_SIZE;
-			const delay = this.delayRange(context);
+			const delay = this.delayRange();
 			await sleepRange(delay.min, delay.max);
 		} while (handleCount <= totalForHandle);
 	}
