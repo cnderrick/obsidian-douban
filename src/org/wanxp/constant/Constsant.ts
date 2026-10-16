@@ -240,6 +240,8 @@ export const PersonNameModeRecords: { [key in PersonNameMode]: string } = dynami
 }) as { [key in PersonNameMode]: string };
 
 export enum SyncType {
+	/** 「全部」: 不是真的一个类别, 而是把下面所有类别依次同步一遍 */
+	all = 'all',
 	movie = 'movie',
 	book = 'book',
 	game = 'game',
@@ -250,6 +252,20 @@ export enum SyncType {
 	celebrity = 'celebrity'
 }
 
+/**
+ * 「全部」类型依次要跑的类别, 数组顺序就是执行顺序。
+ *
+ * 广播与日记没有启用的同步处理器(SyncHandler 里那两个被注释掉了), 所以不在其中。
+ */
+export const SYNC_ALL_TYPES: SyncType[] = [
+	SyncType.movie,
+	SyncType.teleplay,
+	SyncType.book,
+	SyncType.music,
+	SyncType.game,
+	SyncType.celebrity,
+];
+
 export const SyncTypeUrlDomain: Map<SyncType, string> = new Map([
 	[SyncType.movie , 'movie'],
 	[SyncType.book , 'book'],
@@ -259,6 +275,8 @@ export const SyncTypeUrlDomain: Map<SyncType, string> = new Map([
 	[SyncType.teleplay , 'movie'],
 	[SyncType.game, 'games'],
 	[SyncType.celebrity, 'movie'],
+	// 「全部」不会自己去拼列表地址(它只会分发到具体类别), 这里给个占位以免取到 undefined
+	[SyncType.all, 'movie'],
 	]
 )
 
@@ -267,6 +285,7 @@ export const SyncTypeUrlDomain: Map<SyncType, string> = new Map([
  */
 // @ts-ignore
 export const SyncTypeRecords: { [key in SyncType | string]: string } = dynamicI18nRecord({
+	[SyncType.all]: '504101',
 	[SyncType.movie]: '504103',
 	[SyncType.teleplay]: '504107',
 	[SyncType.book]: '504102',

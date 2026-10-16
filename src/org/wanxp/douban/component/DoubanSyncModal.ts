@@ -16,6 +16,7 @@ import {
 } from "../../constant/Constsant";
 import {
 	ALL, DoubanSubjectState, DoubanSubjectStateRecords,
+	DoubanSubjectStateRecords_ALL_SYNC,
 	DoubanSubjectStateRecords_BOOK_SYNC,
 	DoubanSubjectStateRecords_BROADCAST_SYNC, DoubanSubjectStateRecords_CELEBRITY_SYNC,
 	DoubanSubjectStateRecords_GAME_SYNC,
@@ -243,6 +244,11 @@ ${syncStatus.getHasHandle() == 0? '...' : i18nHelper.getMessage('110042') + ':' 
 				//影人收藏只有一个列表, 没有想看/看过, scope 固定为「所有」
 				config.scope = ALL;
 				this.showScopeDropdown(contentEl, DoubanSubjectStateRecords_CELEBRITY_SYNC, config, disable);
+				break;
+			case SyncType.all:
+				//默认「所有」; 某个类别不支持所选状态时由编排层跳过(如影人没有想看)
+				config.scope = ALL;
+				this.showScopeDropdown(contentEl, DoubanSubjectStateRecords_ALL_SYNC, config, disable);
 				break;
 		}
 	}

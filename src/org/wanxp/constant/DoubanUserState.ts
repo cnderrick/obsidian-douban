@@ -142,6 +142,18 @@ export const DoubanSubjectStateRecords_NOTE_SYNC = dynamicStateRecord({[ALL]: '5
  */
 export const DoubanSubjectStateRecords_CELEBRITY_SYNC = dynamicStateRecord({[ALL]: '500004'});
 
+/**
+ * 「全部」类型的同步状态选项: 取各类型的并集(所有 / 想看 / 在看 / 看过)。
+ * 某个类别不支持所选状态时(例如影人没有想看、游戏没有所有), 由编排层跳过它。
+ */
+export const DoubanSubjectStateRecords_ALL_SYNC = dynamicStateRecord({
+	// @ts-ignore
+	[ALL]: '500004',
+	[DoubanSubjectState.wish]: '500102',
+	[DoubanSubjectState.do]: '500103',
+	[DoubanSubjectState.collect]: '500104',
+});
+
 // @ts-ignore
 export const DoubanSubjectStateRecords_MUSIC_SYNC = dynamicStateRecord({
 	// @ts-ignore
@@ -153,6 +165,7 @@ export const DoubanSubjectStateRecords_MUSIC_SYNC = dynamicStateRecord({
 
 // @ts-ignore
 export const DoubanSubjectStateRecords_SYNC: { [key in SyncType]: Record<DoubanSubjectState, string> } = {
+	[SyncType.all]:DoubanSubjectStateRecords_ALL_SYNC,
 	[SyncType.movie]:DoubanSubjectStateRecords_MOVIE_SYNC,
 	[SyncType.book]:DoubanSubjectStateRecords_BOOK_SYNC,
 	[SyncType.music]:DoubanSubjectStateRecords_MUSIC_SYNC,
