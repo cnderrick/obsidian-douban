@@ -3,13 +3,17 @@ jest.mock("obsidian", () => ({
 	moment: (value: any) => ({format: () => String(value)}),
 	Notice: jest.fn(),
 	Platform: {isDesktopApp: true},
+	normalizePath: (path: string) => path.replace(/\/+/g, '/'),
 }), {virtual: true});
 
 import {load} from "cheerio";
 import DoubanMovieLoadHandler from "../src/org/wanxp/douban/data/handler/DoubanMovieLoadHandler";
 import {DoubanTeleplayLoadHandler} from "../src/org/wanxp/douban/data/handler/DoubanTeleplayLoadHandler";
 import {DoubanHttpUtil} from "../src/org/wanxp/utils/DoubanHttpUtil";
+import HttpUtil from "../src/org/wanxp/utils/HttpUtil";
 import DoubanPageGuard, {DoubanPageProblem} from "../src/org/wanxp/utils/DoubanPageGuard";
+import DoubanNotFoundError from "../src/org/wanxp/utils/DoubanNotFoundError";
+import {SubjectListItem} from "../src/org/wanxp/douban/data/model/SubjectListItem";
 
 const loginRedirectHtml = `
 	<html>
@@ -41,6 +45,27 @@ describe("Douban import response guards", () => {
 			"https://movie.douban.com/subject/35183324/",
 			{debug: jest.fn()} as any,
 		)).rejects.toThrow("豆瓣返回了登录跳转页");
+	});
+
+	const removedSubjectHtml = `<html><head><title>页面不存在</title></head>
+		<body><h1>呃...你想访问的页面不存在</h1></body></html>`;
+
+	it("recognizes the page Douban returns for a removed subject", async () => {
+		expect(DoubanPageGuard.detect(removedSubjectHtml)).toBe(DoubanPageProblem.notFound);
+		await expect(DoubanHttpUtil.humanCheck(
+			removedSubjectHtml,
+			"https://movie.douban.com/subject/36449225/",
+			{debug: jest.fn()} as any,
+		)).rejects.toThrow("豆瓣已删除该条目");
+	});
+
+	it("turns an HTTP 404 into a not-found error instead of a generic failure", async () => {
+		jest.spyOn(HttpUtil, "getText").mockResolvedValue({status: 404, textString: ""} as any);
+		await expect(DoubanHttpUtil.httpRequestGet(
+			"https://movie.douban.com/subject/36449225/",
+			{},
+			{debug: jest.fn()} as any,
+		)).rejects.toBeInstanceOf(DoubanNotFoundError);
 	});
 
 	it("does not manufacture empty movie or teleplay subjects from an invalid page", () => {
@@ -88,5 +113,71 @@ describe("Douban import response guards", () => {
 
 		expect(result).toBeUndefined();
 		expect(plugin.putToObsidian).not.toHaveBeenCalled();
+	});
+
+	describe("list fallback for a subject Douban has removed", () => {
+		const buildPlugin = () => ({
+			putToObsidian: jest.fn(),
+			fileHandler: {createNewNoteWithData: jest.fn().mockResolvedValue(true)},
+			settingsManager: {
+				isDebug: () => false,
+				debug: jest.fn(),
+				getHeaders: () => ({}),
+				getSelector: (): string[] => [],
+			},
+		} as any);
+
+		const buildContext = (plugin: any) => {
+			const skipMissing = jest.fn();
+			return {
+				plugin,
+				settings: {},
+				syncActive: true,
+				syncStatusHolder: {syncStatus: {skipMissing, fail: jest.fn()}},
+				userComponent: {isLogin: () => false},
+			} as any;
+		};
+
+		const listItem: SubjectListItem = {
+			id: "36449225",
+			url: "https://movie.douban.com/subject/36449225/",
+			title: "蒙古",
+			updateDate: null,
+		};
+
+		it("creates the note from the list entry without requesting the dead detail page", async () => {
+			jest.spyOn(console, "log").mockImplementation(() => undefined);
+			const request = jest.spyOn(DoubanHttpUtil, "httpRequestGet");
+			jest.spyOn(DoubanMovieLoadHandler.prototype, "parse")
+				.mockResolvedValue({content: "NOTE", filePath: "/movie", fileName: "蒙古 36449225"} as any);
+
+			const plugin = buildPlugin();
+			const context = buildContext(plugin);
+			const handler = new DoubanMovieLoadHandler(plugin);
+
+			const result = await handler.handle("36449225", context, {...listItem, invalid: true});
+
+			expect(result).toBeDefined();
+			expect(request).not.toHaveBeenCalled();
+			expect(plugin.fileHandler.createNewNoteWithData)
+				.toHaveBeenCalledWith("/movie/蒙古 36449225", "NOTE", false, false);
+			expect(context.syncStatusHolder.syncStatus.skipMissing).toHaveBeenCalledWith("36449225", "蒙古");
+		});
+
+		it("falls back to the list entry when the detail page turns out to be 404", async () => {
+			jest.spyOn(console, "log").mockImplementation(() => undefined);
+			jest.spyOn(DoubanMovieLoadHandler.prototype, "parse")
+				.mockResolvedValue({content: "NOTE", filePath: "/movie", fileName: "蒙古 36449225"} as any);
+			jest.spyOn(DoubanHttpUtil, "httpRequestGet")
+				.mockRejectedValue(new DoubanNotFoundError("豆瓣已删除该条目（页面不存在）"));
+
+			const plugin = buildPlugin();
+			const context = buildContext(plugin);
+			const result = await new DoubanMovieLoadHandler(plugin).handle("36449225", context, listItem);
+
+			expect(result).toBeDefined();
+			expect(context.syncStatusHolder.syncStatus.skipMissing).toHaveBeenCalledWith("36449225", "蒙古");
+			expect(context.syncStatusHolder.syncStatus.fail).not.toHaveBeenCalled();
+		});
 	});
 });

@@ -5,6 +5,7 @@ jest.mock("obsidian", () => ({
 }), {virtual: true});
 
 import SyncStatusHolder from "../src/org/wanxp/douban/sync/model/SyncStatusHolder";
+import {SyncItemStatus} from "../src/org/wanxp/constant/Constsant";
 
 const syncConfig = () => ({syncType: "movie", scope: "collect", dataFilePath: ""}) as any;
 
@@ -62,5 +63,29 @@ describe("SyncStatusHolder handled data", () => {
 		// 关增量只影响本轮的类型
 		expect(holder.shouldSync("1")).toBe(true);
 		expect(Array.from(holder.handledData.get("+book+ALL"))).toEqual(["9"]);
+	});
+
+	it("records a subject Douban removed so it is not retried every run", () => {
+		const holder = new SyncStatusHolder(incremental());
+		holder.initSyncHandledData([]);
+		expect(holder.shouldSync("36449225")).toBe(true);
+
+		holder.skipMissing("36449225", "蒙古");
+
+		expect(holder.syncResultMap.get("36449225"))
+			.toMatchObject({id: "36449225", title: "蒙古", status: "missing"});
+		expect(holder.statusHandleMap.get(SyncItemStatus.missing)).toBe(1);
+		// 与 fail 的关键区别: 写进了增量记录, 下轮同步会跳过
+		expect(holder.shouldSync("36449225")).toBe(false);
+	});
+
+	it("keeps failed items retryable", () => {
+		const holder = new SyncStatusHolder(incremental());
+		holder.initSyncHandledData([]);
+
+		holder.fail("36449225", "蒙古");
+
+		expect(holder.statusHandleMap.get(SyncItemStatus.fail)).toBe(1);
+		expect(holder.shouldSync("36449225")).toBe(true);
 	});
 });

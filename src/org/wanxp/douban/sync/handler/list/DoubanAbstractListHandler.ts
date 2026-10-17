@@ -91,13 +91,28 @@ export default abstract class DoubanAbstractListHandler
 			);
 	}
 
+	/**
+	 * 卡片是不是「条目已被豆瓣删除」的残影。
+	 *
+	 * 影视/书籍/音乐/电视剧的列表里, 这种卡片会被降级成 `.item-show.deleted` —— 只剩
+	 * 标题链接与一个「删除」按钮, 没有封面、没有信息行、没有收藏日期, 详情页会 404。
+	 * 各类型共用一个判断, 别的列表结构(影人 `.grid-view .item`、游戏 `.common-item`)
+	 * 只要豆瓣给了 deleted 类也一并认出来。
+	 *
+	 * 认不出来也不影响正确性: 详情页 404 时 DoubanAbstractLoadHandler 仍会退回列表数据
+	 * 建卡, 只是多花一次请求。
+	 */
+	protected isInvalidCard(item: any): boolean {
+		return item.hasClass("deleted");
+	}
+
 	parseSubjectFromHtml(
 		dataHtml: CheerioAPI,
 		context: HandleContext,
 	): SearchPageTypeOf<SubjectListItem> {
 		const items = dataHtml(".item-show")
 			.get()
-			.map((i: any) => {
+			.map((i: any): SubjectListItem | null => {
 				const item = dataHtml(i);
 				const linkValue: string = item
 					.find("div.title > a")
@@ -116,7 +131,8 @@ export default abstract class DoubanAbstractListHandler
 				}
 				let idPattern = /(\d){5,10}/g;
 				let ececResult = idPattern.exec(linkValue);
-				return !ececResult ? null : {id: ececResult[0], url: linkValue, title: titleValue, updateDate: updateDate};
+				const invalid: boolean = this.isInvalidCard(item);
+				return !ececResult ? null : {id: ececResult[0], url: linkValue, title: titleValue, updateDate: updateDate, invalid: invalid};
 			})
 			// 取不到 id 的条目直接丢弃, 避免 null 条目在后续处理中被当成正常条目
 			.filter((item): item is SubjectListItem => item != null);

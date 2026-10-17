@@ -21,6 +21,7 @@ export default class SyncStatusHolder {
 	[SyncItemStatus.exists, 0],
 	[SyncItemStatus.replace, 0],
 	[SyncItemStatus.create, 0],
+	[SyncItemStatus.missing, 0],
 	[SyncItemStatus.fail, 0],
 		[SyncItemStatus.failByDiffType, 0],
 		[SyncItemStatus.unHandle, 0],
@@ -112,6 +113,17 @@ export default class SyncStatusHolder {
 
 	public fail(id:string, title:string) {
 		this.updateResult(id, title, SyncItemStatus.fail);
+	}
+
+	/**
+	 * 豆瓣已删除该条目, 用列表信息建了卡。
+	 *
+	 * 与 fail 不同, 这里会**写进增量记录** —— 否则这条 id 永远不会被跳过,
+	 * 每轮同步都要再请求一次注定 404 的详情页。
+	 */
+	public skipMissing(id:string, title:string) {
+		this.putToHandled(id, title);
+		this.updateResult(id, title, SyncItemStatus.missing);
 	}
 
 	public failByDiffType(id:string, title:string) {

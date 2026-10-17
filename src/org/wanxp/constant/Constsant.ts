@@ -324,6 +324,11 @@ export enum SyncItemStatus {
 	fail = 'fail',
 	failByDiffType = 'failByDiffType',
 	unHandle = 'unHandle',
+	/**
+	 * 豆瓣已删除该条目(详情页 404): 用列表页剩余的信息建了卡, 但没有简介/封面。
+	 * 与 fail 的区别是「这不是插件出错」, 且会写进增量记录, 不再每轮重试。
+	 */
+	missing = 'missing',
 }
 
 export enum NavigateType {

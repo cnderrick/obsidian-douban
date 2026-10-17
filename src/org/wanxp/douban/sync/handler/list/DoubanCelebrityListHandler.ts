@@ -41,18 +41,22 @@ export default class DoubanCelebrityListHandler extends DoubanAbstractListHandle
 	): SearchPageTypeOf<SubjectListItem> {
 		const items = dataHtml(".grid-view .item")
 			.get()
-			.map((i: any) => {
+			.map((i: any): SubjectListItem | null => {
 				const item = dataHtml(i);
-				const linkValue: string = item.find("div.pic > a").attr("href");
+				// 失效条目可能没有封面(div.pic), 标题链接还在就够用
+				const linkValue: string = item.find("div.pic > a").attr("href")
+					|| item.find("div.info li.title a").attr("href");
 				const titleValue: string = item.find("div.info li.title em").text().trim()
+					|| item.find("div.info li.title a").text().trim()
 					|| item.find("div.pic > a").attr("title")
 					|| "";
 				const idPattern = /(\d){5,10}/g;
 				const execResult = idPattern.exec(linkValue);
+				const invalid: boolean = this.isInvalidCard(item);
 				return !execResult
 					? null
 					// 列表页没有日期, 自定义时间条件对影人不可用
-					: {id: execResult[0], url: linkValue, title: titleValue, updateDate: null};
+					: {id: execResult[0], url: linkValue, title: titleValue, updateDate: null, invalid: invalid};
 			})
 			// 取不到 id 的条目直接丢弃, 避免 null 条目在后续处理中被当成正常条目
 			.filter((item): item is SubjectListItem => item != null);

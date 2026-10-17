@@ -12,6 +12,7 @@ import {ClipboardUtil} from "./ClipboardUtil";
 import DoubanHumanCheckModel from "../douban/component/DoubanHumanCheckModel";
 import {DoubanChallengeUtil} from "./DoubanChallengeUtil";
 import DoubanPageGuard, {DoubanPageProblem} from "./DoubanPageGuard";
+import DoubanNotFoundError from "./DoubanNotFoundError";
 
 export class DoubanHttpUtil {
 	/**
@@ -27,6 +28,9 @@ export class DoubanHttpUtil {
 		let response = await HttpUtil.getText(url, headers, settingsManager);
 		if (response.status == 403) {
 			throw new Error(i18nHelper.getMessage('130106'));
+		}
+		if (response.status == 404) {
+			throw new DoubanNotFoundError(i18nHelper.getMessage('130115'));
 		}
 		let html = response.textString;
 		const challenge = DoubanChallengeUtil.parse(html);
@@ -64,6 +68,9 @@ export class DoubanHttpUtil {
 		}
 		const html = response.textString;
 		const problem = DoubanPageGuard.detect(html);
+		if (problem === DoubanPageProblem.notFound) {
+			throw new DoubanNotFoundError(i18nHelper.getMessage('130115'));
+		}
 		if (problem === DoubanPageProblem.accessDenied) {
 			throw new Error(i18nHelper.getMessage('130105'));
 		}
@@ -102,6 +109,9 @@ export class DoubanHttpUtil {
 			settingsManager.debug(html);
 		}
 		const problem = DoubanPageGuard.detect(html.toString());
+		if (problem === DoubanPageProblem.notFound) {
+			throw new DoubanNotFoundError(i18nHelper.getMessage('130115'));
+		}
 		if (problem === DoubanPageProblem.accessDenied) {
 			if (Platform.isDesktopApp) {
 				const loginModel = new DoubanHumanCheckModel(url);

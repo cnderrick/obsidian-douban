@@ -82,6 +82,7 @@ PS: This file could be delete if you want to.
 	'create':`[create]`,
 	'fail':`[fail]`,
 	'failByDiffType':	 `[fail by diff type]`,
+	'missing': `[removed by Douban]`,
 	'syncall':`[summary]`,
 	'notsync':`[notsync]`,
 
@@ -91,6 +92,7 @@ PS: This file could be delete if you want to.
 	'create_desc':  `create`,
 	'fail_desc':	`fail`,
 	'failByDiffType_desc':	`fail because of different type`,
+	'missing_desc': `Douban removed this subject; the note was created from the remaining list data (no summary or cover) and will not be retried`,
 	'notsync_desc': `notsync`,
 	'syncall_desc': `syncall`,
 
@@ -371,6 +373,7 @@ PS: This file could be delete if you want to.
 	'130112': `Douban returned a login redirect or blocked the current network request. Log in again, then retry later or use another network if needed`,
 	'130113': `The Douban detail page has no subject identity. Blank note creation was stopped; log in again and retry`,
 	'130114': `The Douban celebrity page did not expose a personage URL. Blank note creation was stopped; log in again and retry`,
+	'130115': `Douban has removed this subject (page not found)`,
 
 
 	'130107': `Can not find array setting for {1} in {0} , Please add it in array settings`,

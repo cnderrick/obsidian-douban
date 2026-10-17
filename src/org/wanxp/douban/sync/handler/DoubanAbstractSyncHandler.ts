@@ -414,7 +414,8 @@ export abstract class DoubanAbstractSyncHandler<T extends DoubanSubject>
 	): Promise<void> {
 		try {
 			if (syncStatus.shouldSync(item.id)) {
-				await this.doubanSubjectLoadHandler.handle(item.id, context);
+				// 把列表项一并交给处理器: 失效条目要在没有详情页的情况下建卡
+				await this.doubanSubjectLoadHandler.handle(item.id, context, item);
 				await sleepRange(delay.min, delay.max);
 			} else {
 				syncStatus.unHandle(item.id, item.title);

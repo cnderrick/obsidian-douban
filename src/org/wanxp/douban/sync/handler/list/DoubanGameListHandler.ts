@@ -31,7 +31,7 @@ export abstract class DoubanGameListHandler extends DoubanAbstractListHandler {
 	): SearchPageTypeOf<SubjectListItem> {
 		const items = dataHtml(".common-item")
 			.get()
-			.map((i: any) => {
+			.map((i: any): SubjectListItem | null => {
 				const item = dataHtml(i);
 				const linkValue: string = item
 					.find("div.title > a")
@@ -50,7 +50,10 @@ export abstract class DoubanGameListHandler extends DoubanAbstractListHandler {
 				}
 				let idPattern = /(\d){5,10}/g;
 				let ececResult = idPattern.exec(linkValue);
-				return !ececResult ? null : {id: ececResult[0], url: linkValue, title: titleValue, updateDate: updateDate};
+				const invalid: boolean = this.isInvalidCard(item);
+				return !ececResult
+					? null
+					: {id: ececResult[0], url: linkValue, title: titleValue, updateDate: updateDate, invalid: invalid};
 			})
 			// 取不到 id 的条目直接丢弃, 避免 null 条目在后续处理中被当成正常条目
 			.filter((item): item is SubjectListItem => item != null);

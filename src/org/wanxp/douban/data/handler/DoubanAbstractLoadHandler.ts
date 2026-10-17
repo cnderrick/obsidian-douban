@@ -34,6 +34,9 @@ import {VariableUtil} from "../../../utils/VariableUtil";
 import {DataField} from "../../../utils/model/DataField";
 import NumberUtil from "../../../utils/NumberUtil";
 import {DoubanHttpUtil} from "../../../utils/DoubanHttpUtil";
+import DoubanNotFoundError from "../../../utils/DoubanNotFoundError";
+import {FileUtil} from "../../../utils/FileUtil";
+import {SubjectListItem} from "../model/SubjectListItem";
 import {logger} from "bs-logger";
 import DoubanPageParser from "../../../utils/DoubanPageParser";
 
@@ -126,11 +129,18 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 		return DoubanHttpUtil.httpRequestGet(url, context.plugin.settingsManager.getHeaders(), context.plugin.settingsManager);
 	}
 
-	async handle(id: string, context: HandleContext): Promise<T> {
+	async handle(id: string, context: HandleContext, listItem?: SubjectListItem): Promise<T> {
 		const url:string = this.getSubjectUrl(id);
 		if (context.plugin.settingsManager.isDebug()) {
 			context.plugin.settingsManager.debug(`开始请求地址:${url}`)
 			context.plugin.settingsManager.debug(`(注意:请勿向任何人透露你的Cookie,此处若需要截图请**打码**)请求header:${context.settings.loginHeadersContent}`)
+		}
+		// 列表页已经把这条标成「被豆瓣删除」, 详情页注定 404: 直接用列表剩下的信息建卡
+		if (listItem && listItem.invalid) {
+			const created = await this.createFromListItem(id, listItem, context);
+			if (created) {
+				return created;
+			}
 		}
 		return await this.fetchSubjectHtml(id, url, context)
 			.then(load)
@@ -150,11 +160,19 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 			})
 			.then(content => this.toEditor(context, content))
 			// .then(content => content ? editor.replaceSelection(content) : content)
-			.catch(e =>  {
+			.catch(async e =>  {
+				// 条目还在列表里, 但详情页已经 404(豆瓣删了) —— 同样退回列表数据,
+				// 别把一个「豆瓣没有这个条目了」记成插件的失败
+				if (DoubanNotFoundError.is(e)) {
+					const created = await this.createFromListItem(id, listItem, context);
+					if (created) {
+						return created;
+					}
+				}
 				log.error(i18nHelper.getMessage('130101',  e.toString()), e);
 				if (url) {
 					const id = StringUtil.analyzeIdByUrl(url);
-					context.syncStatusHolder?context.syncStatusHolder.syncStatus.fail(id, ''):null;
+					context.syncStatusHolder?context.syncStatusHolder.syncStatus.fail(id, listItem ? listItem.title : ''):null;
 				}else {
 					context.syncStatusHolder?context.syncStatusHolder.syncStatus.handled(1):null;
 				}
@@ -162,6 +180,49 @@ export default abstract class DoubanAbstractLoadHandler<T extends DoubanSubject>
 			});
 
 
+	}
+
+	/**
+	 * 用列表页剩下的信息建一条最小笔记。
+	 *
+	 * 豆瓣删掉条目后, 详情页 404, 列表页的卡片也被降级成只剩标题(`.item-show.deleted`),
+	 * 简介/封面/年代都不再下发 —— 能补的就只有 id、标题、类型与条目地址。
+	 * 先把笔记落下来(模板照常套用, 取不到的变量渲染为空), 再记成「已失效」并写进增量,
+	 * 免得每轮同步都为它白跑一次请求。
+	 *
+	 * @return 建卡成功时返回这个最小条目, 拿不到标题或建卡失败时返回 undefined
+	 */
+	private async createFromListItem(id: string, listItem: SubjectListItem, context: HandleContext): Promise<T | undefined> {
+		const title = String(listItem && listItem.title || '').trim();
+		if (!title) {
+			return undefined;
+		}
+		const subject = {
+			id: id,
+			title: title,
+			type: this.getSupportType(),
+			url: (listItem && listItem.url) || this.getSubjectUrl(id),
+			desc: '',
+			image: '',
+			imageUrl: '',
+			genre: [],
+		} as unknown as T;
+		try {
+			const result = await this.parse(subject, context);
+			if (!result || !result.content) {
+				return undefined;
+			}
+			// 没有封面, 模板里的图片行会渲染成 ![image](<>) —— 直接去掉这行
+			const content = String(result.content).replace(/!\[[^\]]*\]\(<>\s*\)\r?\n*/g, '');
+			await this.doubanPlugin.fileHandler.createNewNoteWithData(
+				FileUtil.join(result.filePath, result.fileName), content, false, false);
+			const syncStatus = context.syncStatusHolder ? context.syncStatusHolder.syncStatus : null;
+			syncStatus ? syncStatus.skipMissing(id, title) : null;
+			return subject;
+		} catch (e) {
+			log.error(i18nHelper.getMessage('130101', e.toString()), e);
+			return undefined;
+		}
 	}
 
 	/**
