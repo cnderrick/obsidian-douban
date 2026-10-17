@@ -84,7 +84,7 @@ export default class DoubanBookLoadHandler extends DoubanAbstractLoadHandler<Dou
 	}
 
 
-	parseSubjectFromHtml(html: CheerioAPI, context: HandleContext): DoubanBookSubject {
+	parseSubjectFromHtml(html: CheerioAPI, context: HandleContext, requestedId?: string): DoubanBookSubject {
 		let desc = DoubanPageParser.extractText(html, [
 			"#link-report .all.hidden .intro p",
 			".related_info .all.hidden .intro p",
@@ -96,11 +96,17 @@ export default class DoubanBookLoadHandler extends DoubanAbstractLoadHandler<Dou
 		const image = html(html("head > meta[property= 'og:image']").get(0)).attr("content");
 		let item = html(html("head > script[type='application/ld+json']").get(0)).text();
 		item = super.html_decode(item);
-		const obj = JSON.parse(item);
-		const title = obj.name;
-		const url = obj.url;
-		const author = obj.author.map((a: any) => a.name);
-		const isbn = obj.isbn;
+		// ld+json 里可能带非法反斜杠转义(标题含 `\` 时豆瓣不转义), 解析失败时退回
+		// 页面上的 h1 / og:title / og:url, 不能让这一条整条失败。
+		const obj = DoubanPageParser.parseJsonLd(item);
+		const url = obj?.url
+			|| html(html("head > meta[property='og:url']").get(0)).attr("content")
+			|| (requestedId ? this.getSubjectUrl(requestedId) : '');
+		const title = obj?.name || this.getTitleFromDom(html);
+		const author = Array.isArray(obj?.author)
+			? obj.author.map((a: any) => a && a.name).filter(Boolean)
+			: [];
+		const isbn = obj?.isbn;
 
 
 		const score = html(html("#interest_sectl > div > div.rating_self.clearfix > strong[property= 'v:average']").get(0)).text();
@@ -131,7 +137,9 @@ export default class DoubanBookLoadHandler extends DoubanAbstractLoadHandler<Dou
 		let menu: string[] = menuIdDom ? html(menuIdDom.get(0)).text().trim().split('\n').map(row => row.trim()) : [];
 		menu.length > 0 ? menu.pop() : menu;
 		const result: DoubanBookSubject = {
-			author: author,
+			author: author.length > 0
+				? author
+				: (valueMap.has('author') && valueMap.get('author') ? [valueMap.get('author')] : []),
 			translator: valueMap.has('translator') ? valueMap.get('translator') : [],
 			image: image,
 			imageUrl: image,
@@ -161,6 +169,23 @@ export default class DoubanBookLoadHandler extends DoubanAbstractLoadHandler<Dou
 			)).slice(0, 5),
 		};
 		return result;
+	}
+
+	/**
+	 * ld+json 用不了时的标题来源。
+	 *
+	 * 优先 h1 里的 v:itemreviewed(与 ld+json 的 name 一致, 不含「(豆瓣)」后缀),
+	 * 其次 og:title。两者都取不到时返回空串, 由上层按「解析不出条目」处理。
+	 */
+	private getTitleFromDom(html: CheerioAPI): string {
+		const heading = DoubanPageParser.extractText(html, [
+			"h1 span[property='v:itemreviewed']",
+			"h1",
+		]);
+		if (heading) {
+			return heading;
+		}
+		return DoubanPageParser.normalizeText(html("head > meta[property='og:title']").attr("content"));
 	}
 
 	private getComment(html: CheerioAPI) {

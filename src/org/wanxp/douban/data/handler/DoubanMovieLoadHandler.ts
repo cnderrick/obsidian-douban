@@ -103,7 +103,12 @@ export default class DoubanMovieLoadHandler extends DoubanAbstractLoadHandler<Do
 			.map(i => {
 				let item = html(i).text();
 				item = super.html_decode(item);
-				const obj = JSON.parse(item.replace(/[\r\n\t]+/g, ''));
+				// ld+json 可能带非法反斜杠转义(标题含 `\` 时豆瓣不转义), 解析不出来
+				// 就交给下面的 meta 兜底, 不要整条判失败。
+				const obj = DoubanPageParser.parseJsonLd(item.replace(/[\r\n\t]+/g, ''));
+				if (!obj) {
+					return undefined;
+				}
 				const idPattern = /(\d){5,10}/g;
 				const id = idPattern.exec(obj.url);
 				const {title, originalTitle} = super.getTitleAndOriginalTitle(obj.name, context);

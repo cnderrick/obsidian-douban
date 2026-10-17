@@ -13,6 +13,47 @@ export default class DoubanPageParser {
 		'#interest_section',
 	];
 
+	/**
+	 * 宽松解析详情页里的 JSON-LD。
+	 *
+	 * 豆瓣偶尔会把带反斜杠的标题原样(未转义)写进 ld+json, 例如书名
+	 * `交互系统新概念设计(用户绩效和用户体验设计准则)/UI\UE系列丛书` 会变成
+	 * `"name" : ".../UI\UE系列丛书"`, 而 `\U` 不是合法的 JSON 转义, 直接
+	 * JSON.parse 会抛 `Bad escaped character` —— 整条会因此被判为失败, 且因为
+	 * 记录里从未成功过, 每次同步都会重抓再失败一次。
+	 *
+	 * 因此这里先原样解析, 失败再把「不构成合法转义的孤立反斜杠」翻倍后重试;
+	 * 仍失败则返回 null(不抛错), 交给调用方退回 DOM/meta 兜底。
+	 *
+	 * @param value script[type='application/ld+json'] 的文本
+	 */
+	static parseJsonLd(value: string | null | undefined): any | null {
+		const text = String(value == null ? '' : value);
+		if (!text.trim()) {
+			return null;
+		}
+		try {
+			return JSON.parse(text);
+		} catch (_error) {
+			// 落到下面的修复分支
+		}
+		try {
+			return JSON.parse(this.repairInvalidJsonEscapes(text));
+		} catch (_error) {
+			return null;
+		}
+	}
+
+	/**
+	 * 把不构成合法 JSON 转义的反斜杠翻倍。
+	 *
+	 * 合法的转义只有 `"` `\` `/` `b` `f` `n` `r` `t` 与 `uXXXX`;
+	 * 其余(含结尾处的孤立反斜杠)都是豆瓣漏转义的, 翻倍后即可被 JSON.parse 接受。
+	 */
+	private static repairInvalidJsonEscapes(text: string): string {
+		return text.replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, '\\\\');
+	}
+
 	static normalizeText(value: string): string {
 		if (!value) {
 			return '';
